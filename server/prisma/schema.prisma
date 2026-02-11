@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id           String   @id @default(uuid())
+  name         String
+  logo         String?
+  isActive     Boolean  @default(true)
+  featureFlags String?  // JSON stored as string for SQLite
+  users        User[]
+  bikes        Bike[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   // SUPERADMIN, ADMIN, WORKER
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
+  bikesAdded   Bike[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Bike {
+  id            String    @id @default(uuid())
+  name          String
+  regNo         String    @unique
+  aadhaarNumber String    // 12-digit Aadhaar number
+  boughtPrice   Float
+  soldPrice     Float?
+  isSold        Boolean   @default(false)
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  addedById     String
+  addedBy       User      @relation(fields: [addedById], references: [id])
+  customerId    String?   // Optional customer who bought the bike
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  name          String
+  phone         String
+  aadhaarNumber String   // 12-digit Aadhaar number
+  address       String
+  bikes         Bike[]   // Bikes purchased by this customer
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  message   String
+  target    String? // Null for Global, CompanyID for Specific
+  createdAt DateTime @default(now())
+}

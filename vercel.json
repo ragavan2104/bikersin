@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "comment": "This configuration is for monorepo deployment. For separate deployments, use individual vercel.json files in each app directory.",
+  "functions": {
+    "server/src/server.ts": {
+      "memory": 3009,
+      "maxDuration": 60
+    }
+  },
+  "builds": [
+    {
+      "src": "server/src/server.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "apps/superadmin/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    },
+    {
+      "src": "apps/tenant/package.json", 
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server/src/server.ts"
+    },
+    {
+      "src": "/superadmin/assets/(.*)",
+      "dest": "apps/superadmin/dist/assets/$1"
+    },
+    {
+      "src": "/tenant/assets/(.*)",
+      "dest": "apps/tenant/dist/assets/$1"
+    },
+    {
+      "src": "/superadmin/(.*)",
+      "dest": "apps/superadmin/dist/index.html"
+    },
+    {
+      "src": "/tenant/(.*)",
+      "dest": "apps/tenant/dist/index.html"
+    },
+    {
+      "src": "/superadmin",
+      "dest": "apps/superadmin/dist/index.html"
+    },
+    {
+      "src": "/tenant", 
+      "dest": "apps/tenant/dist/index.html"
+    },
+    {
+      "src": "/", 
+      "dest": "apps/tenant/dist/index.html"
+    }
+  ]
+}

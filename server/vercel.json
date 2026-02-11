@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "name": "bikers-server",
+  "functions": {
+    "src/server.ts": {
+      "memory": 3009,
+      "maxDuration": 60
+    }
+  },
+  "builds": [
+    {
+      "src": "src/server.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/server.ts"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
