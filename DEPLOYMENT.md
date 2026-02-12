@@ -86,10 +86,10 @@ npm run dev
    DATABASE_URL = postgresql://postgres:[YOUR-PASSWORD]@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres
    JWT_SECRET = a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456789012345678901234567890abcdef123456
    NODE_ENV = production
-   CORS_ORIGINS = https://bikers-tenant.vercel.app,https://bikers-superadmin.vercel.app
+   CORS_ORIGINS = https://bikersin-xus0cnssp-raagavans-projects.vercel.app,https://bikersin-o6iz.vercel.app
    ```
 
-5. **Deploy** → Note your API URL: `https://bikers-api-[hash].vercel.app`
+5. **Deploy** → Note your API URL: `https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app`
 
 #### B. Deploy Tenant App
 
@@ -101,10 +101,10 @@ npm run dev
 
 3. **Add Environment Variable**:
    ```
-   VITE_API_URL = https://bikers-api-[your-hash].vercel.app
+   VITE_API_URL = https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app
    ```
 
-4. **Deploy** → Note URL: `https://bikers-tenant-[hash].vercel.app`
+4. **Deploy** → Note URL: `https://bikersin-xus0cnssp-raagavans-projects.vercel.app`
 
 #### C. Deploy Superadmin App
 
@@ -116,17 +116,17 @@ npm run dev
 
 3. **Add Environment Variable**:
    ```
-   VITE_API_URL = https://bikers-api-[your-hash].vercel.app/api
+   VITE_API_URL = https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app/api
    ```
 
-4. **Deploy** → Note URL: `https://bikers-superadmin-[hash].vercel.app`
+4. **Deploy** → Note URL: `https://bikersin-o6iz.vercel.app`
 
 #### D. Update CORS Origins
 
 1. **Go back to your API deployment**
 2. **Update CORS_ORIGINS** with actual frontend URLs:
    ```
-   CORS_ORIGINS = https://bikers-tenant-[hash].vercel.app,https://bikers-superadmin-[hash].vercel.app
+   CORS_ORIGINS = https://bikersin-xus0cnssp-raagavans-projects.vercel.app,https://bikersin-o6iz.vercel.app
    ```
 3. **Redeploy** the API
 
@@ -136,9 +136,9 @@ After deployment, you'll have:
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **Backend API** | `https://bikers-api-[hash].vercel.app` | Express.js API |
-| **Tenant Portal** | `https://bikers-tenant-[hash].vercel.app` | Bike dealers interface |
-| **Super Admin** | `https://bikers-superadmin-[hash].vercel.app` | System management |
+| **Backend API** | `https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app` | Express.js API |
+| **Tenant Portal** | `https://bikersin-xus0cnssp-raagavans-projects.vercel.app` | Bike dealers interface |
+| **Super Admin** | `https://bikersin-o6iz.vercel.app` | System management |
 | **Database** | Supabase Dashboard | Data management |
 
 ## 🔧 **Configuration Summary**

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "ts-node src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "vercel-build": "npm run build",
     "postinstall": "prisma generate"
   },
