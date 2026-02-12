@@ -89,7 +89,7 @@ npm run dev
    CORS_ORIGINS = https://bikersin-xus0cnssp-raagavans-projects.vercel.app,https://bikersin-o6iz.vercel.app
    ```
 
-5. **Deploy** → Note your API URL: `https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app`
+5. **Deploy** → Note your API URL: `https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app`
 
 #### B. Deploy Tenant App
 
@@ -101,7 +101,7 @@ npm run dev
 
 3. **Add Environment Variable**:
    ```
-   VITE_API_URL = https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app
+   VITE_API_URL = https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app
    ```
 
 4. **Deploy** → Note URL: `https://bikersin-xus0cnssp-raagavans-projects.vercel.app`
@@ -116,7 +116,7 @@ npm run dev
 
 3. **Add Environment Variable**:
    ```
-   VITE_API_URL = https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app/api
+   VITE_API_URL = https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app/api
    ```
 
 4. **Deploy** → Note URL: `https://bikersin-o6iz.vercel.app`
@@ -136,7 +136,7 @@ After deployment, you'll have:
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **Backend API** | `https://bikersin-8zop-4eddqil3c-raagavans-projects.vercel.app` | Express.js API |
+| **Backend API** | `https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app` | Express.js API |
 | **Tenant Portal** | `https://bikersin-xus0cnssp-raagavans-projects.vercel.app` | Bike dealers interface |
 | **Super Admin** | `https://bikersin-o6iz.vercel.app` | System management |
 | **Database** | Supabase Dashboard | Data management |

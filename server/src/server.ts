@@ -42,6 +42,23 @@ app.use('/api/superadmin', superadminRoutes);
 app.use('/api/tenant', tenantRoutes);
 app.use('/api/public', publicRoutes);
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Bikers Management API',
+    version: '1.0.0',
+    status: 'online',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      tenant: '/api/tenant', 
+      superadmin: '/api/superadmin',
+      public: '/api/public'
+    },
+    docs: 'https://github.com/your-repo/api-docs'
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
