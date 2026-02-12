@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { db } from '../lib/db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../middleware/auth';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 // Login endpoint
@@ -12,7 +11,7 @@ export const login = async (req: Request, res: Response) => {
   const { email, password, companyId } = req.body;
   
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await db.user.findUnique({ where: { email } });
     if (!user) return res.status(400).json({ error: 'User not found' });
 
     const validPass = await bcrypt.compare(password, user.passwordHash);
@@ -38,7 +37,7 @@ export const login = async (req: Request, res: Response) => {
     );
 
     // Get company info
-    const company = effectiveCompanyId ? await prisma.company.findUnique({
+    const company = effectiveCompanyId ? await db.company.findUnique({
       where: { id: effectiveCompanyId },
       select: { id: true, name: true, logo: true }
     }) : null;
@@ -66,7 +65,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: req.user.userId },
       include: {
         company: {
@@ -121,7 +120,7 @@ export const register = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if user exists
-    const existingUser = await prisma.user.findUnique({ 
+    const existingUser = await db.user.findUnique({ 
       where: { email: email.toLowerCase() } 
     });
     
@@ -134,7 +133,7 @@ export const register = async (req: AuthRequest, res: Response) => {
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Create user
-    const user = await prisma.user.create({
+    const user = await db.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash,
@@ -186,7 +185,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     }
 
     // Get user
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -202,7 +201,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: { passwordHash: newPasswordHash }
     });

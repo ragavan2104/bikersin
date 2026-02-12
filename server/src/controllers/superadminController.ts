@@ -1,11 +1,10 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { db } from '../lib/db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../middleware/auth';
 import { getSystemStats, validateCompanyData, validateUserData, logAdminAction } from '../utils/adminHelpers';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 export const createCompany = async (req: AuthRequest, res: Response) => {
@@ -18,7 +17,7 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ error: validationErrors.join(', ') });
         }
 
-        const company = await prisma.company.create({
+        const company = await db.company.create({
             data: { name: name.trim(), logo, isActive: true }
         });
         
@@ -40,12 +39,12 @@ export const suspendCompany = async (req: AuthRequest, res: Response) => {
         const { id } = req.params;
         const { isActive } = req.body;
         
-        const company = await prisma.company.findUnique({ where: { id } });
+        const company = await db.company.findUnique({ where: { id } });
         if (!company) {
             return res.status(404).json({ error: 'Company not found' });
         }
 
-        const updated = await prisma.company.update({
+        const updated = await db.company.update({
             where: { id },
             data: { isActive: isActive }
         });
@@ -73,13 +72,13 @@ export const createUser = async (req: AuthRequest, res: Response) => {
         }
         
         // Check if company exists
-        const company = await prisma.company.findUnique({ where: { id: companyId } });
+        const company = await db.company.findUnique({ where: { id: companyId } });
         if (!company) {
             return res.status(404).json({ error: 'Company not found' });
         }
         
         const passwordHash = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
+        const user = await db.user.create({
             data: { 
                 email: email.toLowerCase().trim(), 
                 passwordHash, 
@@ -136,13 +135,13 @@ export const createBroadcast = async (req: AuthRequest, res: Response) => {
         
         // If target is specified, verify company exists
         if (target) {
-            const company = await prisma.company.findUnique({ where: { id: target } });
+            const company = await db.company.findUnique({ where: { id: target } });
             if (!company) {
                 return res.status(404).json({ error: 'Target company not found' });
             }
         }
         
-        const announcement = await prisma.announcement.create({
+        const announcement = await db.announcement.create({
             data: { message: message.trim(), target }
         });
         
@@ -177,7 +176,7 @@ export const impersonateCompany = async (req: AuthRequest, res: Response) => {
 
 export const getAllCompanies = async (req: AuthRequest, res: Response) => {
     try {
-        const companies = await prisma.company.findMany({
+        const companies = await db.company.findMany({
             include: {
                 users: {
                     select: {
@@ -212,7 +211,7 @@ export const getAllCompanies = async (req: AuthRequest, res: Response) => {
 
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
     try {
-        const users = await prisma.user.findMany({
+        const users = await db.user.findMany({
             include: {
                 company: {
                     select: {
@@ -232,7 +231,7 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 
 export const getAllAnnouncements = async (req: AuthRequest, res: Response) => {
     try {
-        const announcements = await prisma.announcement.findMany({
+        const announcements = await db.announcement.findMany({
             orderBy: { createdAt: 'desc' },
             take: 50
         });
@@ -247,7 +246,7 @@ export const deleteCompany = async (req: AuthRequest, res: Response) => {
         const { id } = req.params;
         
         // Check if company has users or bikes
-        const company = await prisma.company.findUnique({
+        const company = await db.company.findUnique({
             where: { id },
             include: {
                 _count: {
@@ -266,7 +265,7 @@ export const deleteCompany = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        await prisma.company.delete({ where: { id } });
+        await db.company.delete({ where: { id } });
         res.json({ message: 'Company deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete company' });
@@ -277,7 +276,7 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
         
-        const company = await prisma.company.findUnique({
+        const company = await db.company.findUnique({
             where: { id },
             include: {
                 users: {
@@ -350,7 +349,7 @@ export const getCompanyRankings = async (req: AuthRequest, res: Response) => {
         const dateFrom = new Date();
         dateFrom.setDate(dateFrom.getDate() - days);
 
-        const companies = await prisma.company.findMany({
+        const companies = await db.company.findMany({
             include: {
                 bikes: {
                     where: {
@@ -390,7 +389,7 @@ export const getSalesTrends = async (req: AuthRequest, res: Response) => {
         const dateFrom = new Date();
         dateFrom.setDate(dateFrom.getDate() - days);
 
-        const sales = await prisma.bike.findMany({
+        const sales = await db.bike.findMany({
             where: {
                 isSold: true,
                 updatedAt: { gte: dateFrom }
@@ -440,7 +439,7 @@ export const exportAnalytics = async (req: AuthRequest, res: Response) => {
 // Customer management endpoints
 export const getCustomers = async (req: AuthRequest, res: Response) => {
     try {
-        const customers = await prisma.customer.findMany({
+        const customers = await db.customer.findMany({
             include: {
                 bikes: {
                     include: {
@@ -477,16 +476,16 @@ export const getCustomers = async (req: AuthRequest, res: Response) => {
 
 export const getCustomerStats = async (req: AuthRequest, res: Response) => {
     try {
-        const totalCustomers = await prisma.customer.count();
+        const totalCustomers = await db.customer.count();
         
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
         
-        const newThisMonth = await prisma.customer.count({
+        const newThisMonth = await db.customer.count({
             where: { createdAt: { gte: oneMonthAgo } }
         });
 
-        const customers = await prisma.customer.findMany({
+        const customers = await db.customer.findMany({
             include: { bikes: true }
         });
 

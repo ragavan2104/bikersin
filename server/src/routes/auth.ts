@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { db } from '../lib/db';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Health check for auth routes
 router.get('/', (req, res) => {
@@ -21,7 +20,7 @@ router.get('/', (req, res) => {
 // Public route to get all companies for login dropdown
 router.get('/companies', async (req, res) => {
   try {
-    const companies = await prisma.company.findMany({
+    const companies = await db.company.findMany({
       where: {
         isActive: true  // Only show active companies
       },
@@ -53,7 +52,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await db.user.findUnique({ where: { email } });
     if (!user) {
       console.log(`[LOGIN FAILED] User not found: ${email}`);
       return res.status(400).json({ error: 'User not found' });
@@ -113,7 +112,7 @@ router.get('/profile', async (req, res) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
       
-      const user = await prisma.user.findUnique({ 
+      const user = await db.user.findUnique({ 
         where: { id: decoded.userId },
         select: {
           id: true,

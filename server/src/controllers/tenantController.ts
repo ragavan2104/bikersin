@@ -1,11 +1,9 @@
 import { Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { db } from '../lib/db'
 import { AuthRequest } from '../middleware/auth'
 import PDFDocument from 'pdfkit'
 import bcrypt from 'bcrypt'
 import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler'
-
-const prisma = new PrismaClient()
 
 // Dashboard Data
 export const getDashboardData = async (req: AuthRequest, res: Response) => {
@@ -14,18 +12,18 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
     const [totalBikes, soldBikes, availableBikes, totalRevenue, totalCost, recentSales, announcements] = await Promise.all([
-      prisma.bike.count({ where: { companyId } }),
-      prisma.bike.count({ where: { companyId, isSold: true } }),
-      prisma.bike.count({ where: { companyId, isSold: false } }),
-      prisma.bike.aggregate({
+      db.bike.count({ where: { companyId } }),
+      db.bike.count({ where: { companyId, isSold: true } }),
+      db.bike.count({ where: { companyId, isSold: false } }),
+      db.bike.aggregate({
         where: { companyId, isSold: true },
         _sum: { soldPrice: true }
       }),
-      prisma.bike.aggregate({
+      db.bike.aggregate({
         where: { companyId, isSold: true },
         _sum: { boughtPrice: true }
       }),
-      prisma.bike.findMany({
+      db.bike.findMany({
         where: { companyId, isSold: true },
         orderBy: { updatedAt: 'desc' },
         take: 5,
@@ -37,7 +35,7 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
           updatedAt: true
         }
       }),
-      prisma.announcement.findMany({
+      db.announcement.findMany({
         where: {
           OR: [
             { target: null }, // Global announcements
@@ -50,7 +48,7 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
     ])
 
     const totalProfit = (totalRevenue._sum.soldPrice || 0) - (totalCost._sum.boughtPrice || 0)
-    const agingInventory = await prisma.bike.count({
+    const agingInventory = await db.bike.count({
       where: {
         companyId,
         isSold: false,
@@ -82,7 +80,7 @@ export const getBikes = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const bikes = await prisma.bike.findMany({
+    const bikes = await db.bike.findMany({
       where: { companyId },
       include: {
         addedBy: {
@@ -112,7 +110,7 @@ export const getBikeDetails = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Company ID required' })
     }
 
-    const bike = await prisma.bike.findFirst({
+    const bike = await db.bike.findFirst({
       where: { id, companyId },
       include: {
         addedBy: {
@@ -197,7 +195,7 @@ export const addBike = async (req: AuthRequest, res: Response) => {
     }
 
     // Check for duplicate registration number within company
-    const existingBike = await prisma.bike.findFirst({
+    const existingBike = await db.bike.findFirst({
       where: { 
         companyId, 
         regNo: regNo.trim() // SQLite case-sensitive check
@@ -208,7 +206,7 @@ export const addBike = async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ error: 'Registration number already exists in your inventory' })
     }
 
-    const bike = await prisma.bike.create({
+    const bike = await db.bike.create({
       data: {
         name: name.trim(),
         regNo: regNo.trim().toUpperCase(),
@@ -249,7 +247,7 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
     }
 
     // Verify bike belongs to company
-    const existingBike = await prisma.bike.findFirst({
+    const existingBike = await db.bike.findFirst({
       where: { id, companyId }
     })
 
@@ -259,7 +257,7 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
 
     // Check for duplicate registration number (excluding current bike)
     if (regNo && regNo.trim() !== existingBike.regNo) {
-      const duplicateRegNo = await prisma.bike.findFirst({
+      const duplicateRegNo = await db.bike.findFirst({
         where: {
           companyId,
           regNo: regNo.trim(),
@@ -280,7 +278,7 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const updatedBike = await prisma.bike.update({
+    const updatedBike = await db.bike.update({
       where: { id },
       data: {
         ...(name && { name: name.trim() }),
@@ -315,7 +313,7 @@ export const deleteBike = async (req: AuthRequest, res: Response) => {
     }
 
     // Verify bike belongs to company
-    const existingBike = await prisma.bike.findFirst({
+    const existingBike = await db.bike.findFirst({
       where: { id, companyId }
     })
 
@@ -323,7 +321,7 @@ export const deleteBike = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Bike not found' })
     }
 
-    await prisma.bike.delete({ where: { id } })
+    await db.bike.delete({ where: { id } })
     res.json({ message: 'Bike deleted successfully' })
   } catch (error) {
     console.error('Delete bike error:', error)
@@ -369,7 +367,7 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
     }
 
     // Verify bike belongs to company and is not already sold
-    const existingBike = await prisma.bike.findFirst({
+    const existingBike = await db.bike.findFirst({
       where: { id, companyId, isSold: false }
     })
 
@@ -378,14 +376,14 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
     }
 
     // Create or find customer
-    let customer = await prisma.customer.findFirst({
+    let customer = await db.customer.findFirst({
       where: {
         aadhaarNumber: customerData.aadhaarNumber
       }
     })
 
     if (!customer) {
-      customer = await prisma.customer.create({
+      customer = await db.customer.create({
         data: {
           name: customerData.name.trim(),
           phone: customerData.phone.trim(),
@@ -395,7 +393,7 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
       })
     } else {
       // Update existing customer data
-      customer = await prisma.customer.update({
+      customer = await db.customer.update({
         where: { id: customer.id },
         data: {
           name: customerData.name.trim(),
@@ -405,7 +403,7 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
       })
     }
 
-    const updatedBike = await prisma.bike.update({
+    const updatedBike = await db.bike.update({
       where: { id },
       data: {
         isSold: true,
@@ -442,7 +440,7 @@ export const generateReceipt = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Company ID required' })
     }
 
-    const bike = await prisma.bike.findFirst({
+    const bike = await db.bike.findFirst({
       where: { id, companyId },
       include: {
         company: true,
@@ -494,7 +492,7 @@ export const getSalesData = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const sales = await prisma.bike.findMany({
+    const sales = await db.bike.findMany({
       where: { companyId, isSold: true },
       include: {
         addedBy: {
@@ -545,7 +543,7 @@ export const getCompanyUsers = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' })
     }
 
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       where: { companyId },
       include: {
         _count: {
@@ -593,13 +591,13 @@ export const createCompanyUser = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
+    const existingUser = await db.user.findUnique({ where: { email: email.toLowerCase() } })
     if (existingUser) {
       return res.status(400).json({ error: 'Email already exists' })
     }
 
     const passwordHash = await bcrypt.hash(password, 10)
-    const user = await prisma.user.create({
+    const user = await db.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash,
@@ -632,14 +630,14 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
     }
 
     const [users, bikes, sales, revenue] = await Promise.all([
-      prisma.user.groupBy({
+      db.user.groupBy({
         by: ['role'],
         where: { companyId },
         _count: { role: true }
       }),
-      prisma.bike.count({ where: { companyId } }),
-      prisma.bike.count({ where: { companyId, isSold: true } }),
-      prisma.bike.aggregate({
+      db.bike.count({ where: { companyId } }),
+      db.bike.count({ where: { companyId, isSold: true } }),
+      db.bike.aggregate({
         where: { companyId, isSold: true },
         _sum: { soldPrice: true, boughtPrice: true }
       })
@@ -677,7 +675,7 @@ export const getProfitReport = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const soldBikes = await prisma.bike.findMany({
+    const soldBikes = await db.bike.findMany({
       where: { companyId, isSold: true },
       select: { boughtPrice: true, soldPrice: true }
     })

@@ -16,14 +16,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration for tenant app
+// CORS configuration
+const corsOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : [
+      'http://localhost:3000', 
+      'http://localhost:3001',
+      'http://localhost:5173',  // Vite dev server
+      'http://localhost:5174'   // Additional Vite port
+    ];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://localhost:3001',
-    'http://localhost:5173',  // Vite dev server
-    'http://localhost:5174'   // Additional Vite port
-  ],
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'auth-token']
@@ -53,9 +57,15 @@ app.use(notFoundHandler);
 // Global error handler
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`🏢 Tenant API: http://localhost:${PORT}/api/tenant`);
-    console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
-});
+// For Vercel serverless functions
+export default app;
+
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+        console.log(`🏢 Tenant API: http://localhost:${PORT}/api/tenant`);
+        console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
+    });
+}

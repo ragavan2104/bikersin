@@ -1,14 +1,12 @@
 import PDFDocument from 'pdfkit';
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { db } from '../lib/db';
 import { AuthRequest } from '../middleware/auth';
-
-const prisma = new PrismaClient();
 
 export const generateSalesReceipt = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        const bike = await prisma.bike.findFirst({
+        const bike = await db.bike.findFirst({
             where: { id, companyId: req.user!.companyId! },
             include: { company: true, addedBy: { select: { email: true } } }
         });

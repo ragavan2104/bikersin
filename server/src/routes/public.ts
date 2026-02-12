@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { db } from '../lib/db';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/companies', async (req, res) => {
   try {
-    const companies = await prisma.company.findMany({
+    const companies = await db.company.findMany({
       where: { isActive: true },
       select: { id: true, name: true, logo: true }
     });

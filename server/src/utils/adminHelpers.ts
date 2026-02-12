@@ -1,26 +1,24 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { db } from '../lib/db';
 
 export const getSystemStats = async () => {
     try {
-        const totalUsers = await prisma.user.count();
-        const totalCompanies = await prisma.company.count();
-        const activeCompanies = await prisma.company.count({ where: { isActive: true } });
-        const totalBikes = await prisma.bike.count();
-        const soldBikes = await prisma.bike.count({ where: { isSold: true } });
+        const totalUsers = await db.user.count();
+        const totalCompanies = await db.company.count();
+        const activeCompanies = await db.company.count({ where: { isActive: true } });
+        const totalBikes = await db.bike.count();
+        const soldBikes = await db.bike.count({ where: { isSold: true } });
         
-        const totalSales = await prisma.bike.aggregate({
+        const totalSales = await db.bike.aggregate({
             _sum: { soldPrice: true },
             where: { isSold: true }
         });
 
-        const totalCost = await prisma.bike.aggregate({
+        const totalCost = await db.bike.aggregate({
             _sum: { boughtPrice: true },
             where: { isSold: true }
         });
 
-        const usersByRole = await prisma.user.groupBy({
+        const usersByRole = await db.user.groupBy({
             by: ['role'],
             _count: { role: true }
         });
