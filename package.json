@@ -5,12 +5,7 @@
     "server": "cd server && npm run dev",
     "superadmin": "cd apps/superadmin && npm run dev",
     "tenant": "cd apps/tenant && npm run dev",
-    "dev": "concurrently \"npm run server\" \"npm run superadmin\" \"npm run tenant\"",
-    "build": "npm run build:server && npm run build:superadmin && npm run build:tenant",
-    "build:server": "cd server && npm install && npm run build",
-    "build:superadmin": "cd apps/superadmin && npm install && npm run build",
-    "build:tenant": "cd apps/tenant && npm install && npm run build",
-    "vercel-build": "npm run build"
+    "dev": "concurrently \"npm run server\" \"npm run superadmin\" \"npm run tenant\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

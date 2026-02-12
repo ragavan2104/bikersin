@@ -3,16 +3,16 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Company {
   id           String   @id @default(uuid())
-  name         String
+  name         String   @unique
   logo         String?
   isActive     Boolean  @default(true)
-  featureFlags String?  // JSON stored as string for SQLite
+  featureFlags Json?    // Native JSON support in PostgreSQL
   users        User[]
   bikes        Bike[]
   createdAt    DateTime @default(now())
