@@ -1,16 +1,14 @@
 {
   "version": 2,
   "comment": "This configuration is for monorepo deployment. For separate deployments, use individual vercel.json files in each app directory.",
-  "functions": {
-    "server/src/server.ts": {
-      "memory": 3009,
-      "maxDuration": 60
-    }
-  },
   "builds": [
     {
       "src": "server/src/server.ts",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "memory": 3009,
+        "maxDuration": 60
+      }
     },
     {
       "src": "apps/superadmin/package.json",
