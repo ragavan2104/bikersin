@@ -1,26 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { firestoreService } from './firestore';
 
-// Singleton pattern for Prisma Client in serverless environments
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+// Export the Firestore service as the main database interface
+export const db = firestoreService;
 
-export const db = globalForPrisma.prisma ?? 
-  new PrismaClient({
-    log: ['query', 'error', 'warn'],
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
-  });
+// For backward compatibility, we can also export individual services
+export { firestoreService };
 
-// Prevent multiple instances in development
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = db;
-}
-
-// Graceful shutdown for serverless functions
-process.on('beforeExit', async () => {
-  await db.$disconnect();
-});
+console.log('✅ Database configured with Firestore');

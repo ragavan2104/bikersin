@@ -5,11 +5,18 @@ const router = Router();
 
 router.get('/companies', async (req, res) => {
   try {
-    const companies = await db.company.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, logo: true }
-    });
-    res.json(companies);
+    const companies = await db.findAllCompanies();
+    
+    // Filter active companies and select relevant fields
+    const activeCompanies = companies
+      .filter(company => company.isActive)
+      .map(company => ({
+        id: company.id,
+        name: company.name,
+        logo: company.logo || null
+      }));
+      
+    res.json(activeCompanies);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch companies' });
   }

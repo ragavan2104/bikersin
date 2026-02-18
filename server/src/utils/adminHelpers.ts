@@ -2,49 +2,7 @@ import { db } from '../lib/db';
 
 export const getSystemStats = async () => {
     try {
-        const totalUsers = await db.user.count();
-        const totalCompanies = await db.company.count();
-        const activeCompanies = await db.company.count({ where: { isActive: true } });
-        const totalBikes = await db.bike.count();
-        const soldBikes = await db.bike.count({ where: { isSold: true } });
-        
-        const totalSales = await db.bike.aggregate({
-            _sum: { soldPrice: true },
-            where: { isSold: true }
-        });
-
-        const totalCost = await db.bike.aggregate({
-            _sum: { boughtPrice: true },
-            where: { isSold: true }
-        });
-
-        const usersByRole = await db.user.groupBy({
-            by: ['role'],
-            _count: { role: true }
-        });
-
-        return {
-            overview: {
-                totalUsers,
-                totalCompanies,
-                activeCompanies,
-                suspendedCompanies: totalCompanies - activeCompanies
-            },
-            inventory: {
-                totalBikes,
-                soldBikes,
-                availableBikes: totalBikes - soldBikes
-            },
-            financial: {
-                totalRevenue: totalSales._sum.soldPrice || 0,
-                totalCost: totalCost._sum.boughtPrice || 0,
-                totalProfit: (totalSales._sum.soldPrice || 0) - (totalCost._sum.boughtPrice || 0)
-            },
-            users: usersByRole.reduce((acc, item) => {
-                acc[item.role.toLowerCase()] = item._count.role;
-                return acc;
-            }, {} as Record<string, number>)
-        };
+        return await db.getSystemStats();
     } catch (error) {
         console.error('Error getting system stats:', error);
         throw error;
@@ -110,14 +68,13 @@ export const logAdminAction = async (adminId: string, action: string, details: a
         // This could be extended to log admin actions for audit purposes
         console.log(`[ADMIN ACTION] User ${adminId} performed: ${action}`, details);
         
-        // You could save to an audit log table if needed
-        // await prisma.auditLog.create({
-        //     data: {
-        //         adminId,
-        //         action,
-        //         details: JSON.stringify(details),
-        //         timestamp: new Date()
-        //     }
+        // You could save to an audit log collection if needed
+        // await firestoreService.createAuditLog({
+        //     adminId,
+        //     action,
+        //     details,
+        //     timestamp: new Date().toISOString()
+        // });
         // });
     } catch (error) {
         console.error('Error logging admin action:', error);

@@ -20,22 +20,16 @@ router.get('/', (req, res) => {
 // Public route to get all companies for login dropdown
 router.get('/companies', async (req, res) => {
   try {
-    const companies = await db.company.findMany({
-      where: {
-        isActive: true  // Only show active companies
-      },
-      select: {
-        id: true,
-        name: true,
-        isActive: true
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+    const companies = await db.findAllCompanies({ isActive: true });
     
-    console.log('Companies fetched:', companies);
-    res.json(companies);
+    const formattedCompanies = companies.map(company => ({
+      id: company.id,
+      name: company.name,
+      isActive: company.isActive
+    }));
+    
+    console.log('Companies fetched:', formattedCompanies);
+    res.json(formattedCompanies);
   } catch (error) {
     console.error('Get companies error:', error);
     res.status(500).json({ error: 'Failed to fetch companies' });
@@ -52,7 +46,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await db.user.findUnique({ where: { email } });
+    const user = await db.findUserByEmail(email);
     if (!user) {
       console.log(`[LOGIN FAILED] User not found: ${email}`);
       return res.status(400).json({ error: 'User not found' });
@@ -112,28 +106,13 @@ router.get('/profile', async (req, res) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
       
-      const user = await db.user.findUnique({ 
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          companyId: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-            isActive: true
-          }
-        }
+      const user = await db.findUserById(decoded.userId, true);
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
       }
-    });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ user });
+      res.json({ user });
     } catch (jwtError: any) {
       // Handle specific JWT errors
       if (jwtError.name === 'TokenExpiredError') {

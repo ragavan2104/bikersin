@@ -20,7 +20,7 @@ Connection: Direct connection (no pooling)
 
 Your Supabase database is ready! Connection string:
 ```
-postgresql://postgres:[YOUR-PASSWORD]@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres
+postgresql://postgres:RAGAVAn0204_@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres
 ```
 
 **Next**: Deploy your Prisma schema to create tables.
@@ -30,7 +30,7 @@ postgresql://postgres:[YOUR-PASSWORD]@db.yjaoxnairdqxsushflwg.supabase.co:5432/p
 ```bash
 # 1. Create server environment file
 cd server
-echo 'DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres"' > .env
+echo 'DATABASE_URL="postgresql://postgres:RAGAVAn0204_@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres"' > .env
 echo 'JWT_SECRET="a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456789012345678901234567890abcdef123456"' >> .env
 echo "NODE_ENV=development" >> .env
 echo 'CORS_ORIGINS="http://localhost:5173,http://localhost:5174"' >> .env
@@ -83,13 +83,13 @@ npm run dev
 
 4. **Add Environment Variables**:
    ```
-   DATABASE_URL = postgresql://postgres:[YOUR-PASSWORD]@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres
+   DATABASE_URL = postgresql://postgres:RAGAVAn0204_@db.yjaoxnairdqxsushflwg.supabase.co:5432/postgres
    JWT_SECRET = a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456789012345678901234567890abcdef123456
    NODE_ENV = production
-   CORS_ORIGINS = https://bikersin-xus0cnssp-raagavans-projects.vercel.app,https://bikersin-o6iz.vercel.app
+   CORS_ORIGINS = https://mybikers.ragav.dev,https://bikers.ragav.dev
    ```
 
-5. **Deploy** → Note your API URL: `https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app`
+5. **Deploy** → Note your API URL: `https://backendbikers.ragav.dev`
 
 #### B. Deploy Tenant App
 
@@ -101,10 +101,10 @@ npm run dev
 
 3. **Add Environment Variable**:
    ```
-   VITE_API_URL = https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app
+   VITE_API_URL = https://backendbikers.ragav.dev
    ```
 
-4. **Deploy** → Note URL: `https://bikersin-xus0cnssp-raagavans-projects.vercel.app`
+4. **Deploy** → Note URL: `https://mybikers.ragav.dev`
 
 #### C. Deploy Superadmin App
 
@@ -116,17 +116,17 @@ npm run dev
 
 3. **Add Environment Variable**:
    ```
-   VITE_API_URL = https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app/api
+   VITE_API_URL = https://backendbikers.ragav.dev/api
    ```
 
-4. **Deploy** → Note URL: `https://bikersin-o6iz.vercel.app`
+4. **Deploy** → Note URL: `https://bikers.ragav.dev`
 
 #### D. Update CORS Origins
 
 1. **Go back to your API deployment**
 2. **Update CORS_ORIGINS** with actual frontend URLs:
    ```
-   CORS_ORIGINS = https://bikersin-xus0cnssp-raagavans-projects.vercel.app,https://bikersin-o6iz.vercel.app
+   CORS_ORIGINS = https://mybikers.ragav.dev,https://bikers.ragav.dev
    ```
 3. **Redeploy** the API
 
@@ -136,9 +136,9 @@ After deployment, you'll have:
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **Backend API** | `https://bikersin-8zop-mooj9n97t-raagavans-projects.vercel.app` | Express.js API |
-| **Tenant Portal** | `https://bikersin-xus0cnssp-raagavans-projects.vercel.app` | Bike dealers interface |
-| **Super Admin** | `https://bikersin-o6iz.vercel.app` | System management |
+| **Backend API** | `https://backendbikers.ragav.dev` | Express.js API |
+| **Tenant Portal** | `https://mybikers.ragav.dev` | Bike dealers interface |
+| **Super Admin** | `https://bikers.ragav.dev` | System management |
 | **Database** | Supabase Dashboard | Data management |
 
 ## 🔧 **Configuration Summary**

@@ -1,6 +1,13 @@
+// Load environment variables first
+import dotenv from 'dotenv';
+import path from 'path';
+
+const envPath = path.resolve(__dirname, '..', '.env');
+dotenv.config({ path: envPath });
+
+import { config } from './config/env';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 
 // Route imports
 import authRoutes from './routes/auth';
@@ -11,14 +18,12 @@ import publicRoutes from './routes/public';
 // Middleware imports
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.PORT;
 
 // CORS configuration
-const corsOrigins = process.env.CORS_ORIGINS 
-  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+const corsOrigins = config.CORS_ORIGINS 
+  ? config.CORS_ORIGINS.split(',').map(origin => origin.trim())
   : [
       'http://localhost:3000', 
       'http://localhost:3001',

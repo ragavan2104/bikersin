@@ -11,58 +11,52 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const [totalBikes, soldBikes, availableBikes, totalRevenue, totalCost, recentSales, announcements] = await Promise.all([
-      db.bike.count({ where: { companyId } }),
-      db.bike.count({ where: { companyId, isSold: true } }),
-      db.bike.count({ where: { companyId, isSold: false } }),
-      db.bike.aggregate({
-        where: { companyId, isSold: true },
-        _sum: { soldPrice: true }
-      }),
-      db.bike.aggregate({
-        where: { companyId, isSold: true },
-        _sum: { boughtPrice: true }
-      }),
-      db.bike.findMany({
-        where: { companyId, isSold: true },
-        orderBy: { updatedAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          name: true,
-          regNo: true,
-          soldPrice: true,
-          updatedAt: true
-        }
-      }),
-      db.announcement.findMany({
-        where: {
-          OR: [
-            { target: null }, // Global announcements
-            { target: companyId } // Company-specific
-          ]
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 3
+    // Get company stats and bikes
+    const [companyStats, bikes, announcements] = await Promise.all([
+      db.getCompanyStats(companyId),
+      db.findBikesByCompany(companyId, true),
+      db.findAnnouncements(companyId)
+    ]);
+    
+    // Calculate metrics from the data
+    const totalBikes = bikes.length;
+    const soldBikes = bikes.filter(bike => bike.isSold).length;
+    const availableBikes = bikes.filter(bike => !bike.isSold).length;
+    const totalRevenue = bikes
+      .filter(bike => bike.isSold && bike.soldPrice)
+      .reduce((sum, bike) => sum + (bike.soldPrice || 0), 0);
+    const totalCost = bikes
+      .filter(bike => bike.isSold && bike.boughtPrice)
+      .reduce((sum, bike) => sum + (bike.boughtPrice || 0), 0);
+    const totalProfit = totalRevenue - totalCost;
+    
+    const recentSales = bikes
+      .filter(bike => bike.isSold)
+      .sort((a, b) => {
+        const aTime = (a.updatedAt as any) instanceof Date ? (a.updatedAt as unknown as Date).getTime() : new Date(a.updatedAt as unknown as string).getTime();
+        const bTime = (b.updatedAt as any) instanceof Date ? (b.updatedAt as unknown as Date).getTime() : new Date(b.updatedAt as unknown as string).getTime();
+        return bTime - aTime;
       })
-    ])
+      .slice(0, 5)
+      .map(bike => ({
+        id: bike.id,
+        name: bike.name,
+        regNo: bike.regNo,
+        soldPrice: bike.soldPrice,
+        updatedAt: bike.updatedAt
+      }));
 
-    const totalProfit = (totalRevenue._sum.soldPrice || 0) - (totalCost._sum.boughtPrice || 0)
-    const agingInventory = await db.bike.count({
-      where: {
-        companyId,
-        isSold: false,
-        createdAt: {
-          lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
-        }
-      }
-    })
+    const agingInventory = bikes.filter(bike => {
+      if (bike.isSold || !bike.createdAt) return false;
+      const createdTime = (bike.createdAt as any) instanceof Date ? (bike.createdAt as unknown as Date).getTime() : new Date(bike.createdAt as unknown as string).getTime();
+      return createdTime < Date.now() - 30 * 24 * 60 * 60 * 1000;
+    }).length;
 
     res.json({
       totalBikes,
       soldBikes,
       availableBikes,
-      totalRevenue: totalRevenue._sum.soldPrice || 0,
+      totalRevenue,
       totalProfit,
       agingInventory,
       recentSales,
@@ -80,18 +74,7 @@ export const getBikes = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const bikes = await db.bike.findMany({
-      where: { companyId },
-      include: {
-        addedBy: {
-          select: {
-            email: true,
-            role: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    })
+    const bikes = await db.findBikesByCompany(companyId)
 
     res.json(bikes)
   } catch (error) {
@@ -110,55 +93,66 @@ export const getBikeDetails = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Company ID required' })
     }
 
-    const bike = await db.bike.findFirst({
-      where: { id, companyId },
-      include: {
-        addedBy: {
-          select: {
-            id: true,
-            email: true,
-            role: true
-          }
-        },
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            aadhaarNumber: true,
-            address: true,
-            createdAt: true
-          }
-        },
-        company: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
-    })
+    const bike = await db.findBikeByIdAndCompany(id, companyId);
 
     if (!bike) {
       return res.status(404).json({ error: 'Bike not found' })
     }
 
+    // Fetch related data
+    const [addedBy, customer, company] = await Promise.all([
+      db.findUserById(bike.addedById),
+      bike.customerId ? db.findCustomerById(bike.customerId) : null,
+      db.findCompanyById(bike.companyId)
+    ]);
+
     // Add additional information
     const bikeDetails = {
       ...bike,
+      addedBy: addedBy ? {
+        id: addedBy.id,
+        email: addedBy.email,
+        role: addedBy.role
+      } : undefined,
+      customer: customer ? {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        aadhaarNumber: customer.aadhaarNumber,
+        address: customer.address,
+        createdAt: customer.createdAt
+      } : undefined,
+      company: company ? {
+        id: company.id,
+        name: company.name
+      } : undefined,
       supplierInfo: {
         name: 'Previous Owner',
         aadhaarNumber: bike.aadhaarNumber,
         note: 'This bike was purchased from the individual with this Aadhaar number'
       },
       purchaseInfo: {
-        addedBy: bike.addedBy,
-        company: bike.company,
+        addedBy: addedBy ? {
+          id: addedBy.id,
+          email: addedBy.email,
+          role: addedBy.role
+        } : undefined,
+        company: company ? {
+          id: company.id,
+          name: company.name
+        } : undefined,
         purchaseDate: bike.createdAt,
         purchasePrice: bike.boughtPrice
       },
       saleInfo: bike.isSold ? {
-        customer: bike.customer,
+        customer: customer ? {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          aadhaarNumber: customer.aadhaarNumber,
+          address: customer.address,
+          createdAt: customer.createdAt
+        } : undefined,
         soldDate: bike.updatedAt,
         soldPrice: bike.soldPrice,
         profit: bike.soldPrice ? bike.soldPrice - bike.boughtPrice : 0
@@ -195,38 +189,35 @@ export const addBike = async (req: AuthRequest, res: Response) => {
     }
 
     // Check for duplicate registration number within company
-    const existingBike = await db.bike.findFirst({
-      where: { 
-        companyId, 
-        regNo: regNo.trim() // SQLite case-sensitive check
-      }
-    })
+    const existingBike = await db.findBikeByRegNo(regNo.trim(), companyId);
 
     if (existingBike) {
       return res.status(409).json({ error: 'Registration number already exists in your inventory' })
     }
 
-    const bike = await db.bike.create({
-      data: {
-        name: name.trim(),
-        regNo: regNo.trim().toUpperCase(),
-        aadhaarNumber: aadhaarNumber.trim(),
-        boughtPrice: parsedBoughtPrice,
-        companyId,
-        addedById
-      },
-      include: {
-        addedBy: {
-          select: {
-            email: true,
-            role: true
-          }
-        }
-      }
-    })
+    const bike = await db.createBike({
+      name: name.trim(),
+      regNo: regNo.trim().toUpperCase(),
+      aadhaarNumber: aadhaarNumber.trim(),
+      boughtPrice: parsedBoughtPrice,
+      isSold: false,
+      companyId,
+      addedById
+    });
+
+    // Get the added by user info for response
+    const addedBy = await db.findUserById(addedById);
+
+    const bikeWithRelation = {
+      ...bike,
+      addedBy: addedBy ? {
+        email: addedBy.email,
+        role: addedBy.role
+      } : undefined
+    };
 
     console.log(`Bike added: ${bike.name} (${bike.regNo}) by ${req.user?.userId}`)
-    res.status(201).json(bike)
+    res.status(201).json(bikeWithRelation)
   } catch (error) {
     console.error('Add bike error:', error)
     if (error instanceof ValidationError) {
@@ -247,9 +238,7 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
     }
 
     // Verify bike belongs to company
-    const existingBike = await db.bike.findFirst({
-      where: { id, companyId }
-    })
+    const existingBike = await db.findBikeByIdAndCompany(id, companyId);
 
     if (!existingBike) {
       return res.status(404).json({ error: 'Bike not found' })
@@ -257,13 +246,7 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
 
     // Check for duplicate registration number (excluding current bike)
     if (regNo && regNo.trim() !== existingBike.regNo) {
-      const duplicateRegNo = await db.bike.findFirst({
-        where: {
-          companyId,
-          regNo: regNo.trim(),
-          id: { not: id }
-        }
-      })
+      const duplicateRegNo = await db.findBikeByRegNo(regNo.trim(), companyId, id);
 
       if (duplicateRegNo) {
         return res.status(400).json({ error: 'Registration number already exists' })
@@ -278,25 +261,29 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const updatedBike = await db.bike.update({
-      where: { id },
-      data: {
-        ...(name && { name: name.trim() }),
-        ...(regNo && { regNo: regNo.trim() }),
-        ...(aadhaarNumber && { aadhaarNumber: aadhaarNumber.trim() }),
-        ...(boughtPrice && { boughtPrice: parseFloat(boughtPrice) })
-      },
-      include: {
-        addedBy: {
-          select: {
-            email: true,
-            role: true
-          }
-        }
-      }
-    })
+    const updateData: any = {};
+    if (name) updateData.name = name.trim();
+    if (regNo) updateData.regNo = regNo.trim();
+    if (aadhaarNumber) updateData.aadhaarNumber = aadhaarNumber.trim();
+    if (boughtPrice) updateData.boughtPrice = parseFloat(boughtPrice);
 
-    res.json(updatedBike)
+    const updatedBike = await db.updateBike(id, updateData);
+
+    if (!updatedBike) {
+      return res.status(404).json({ error: 'Failed to update bike' });
+    }
+
+    // Get addedBy user info for response
+    const addedBy = await db.findUserById(updatedBike.addedById);
+    const bikeWithRelation = {
+      ...updatedBike,
+      addedBy: addedBy ? {
+        email: addedBy.email,
+        role: addedBy.role
+      } : undefined
+    };
+
+    res.json(bikeWithRelation)
   } catch (error) {
     console.error('Update bike error:', error)
     res.status(500).json({ error: 'Failed to update bike' })
@@ -313,15 +300,17 @@ export const deleteBike = async (req: AuthRequest, res: Response) => {
     }
 
     // Verify bike belongs to company
-    const existingBike = await db.bike.findFirst({
-      where: { id, companyId }
-    })
+    const existingBike = await db.findBikeByIdAndCompany(id, companyId);
 
     if (!existingBike) {
-      return res.status(404).json({ error: 'Bike not found' })
+      return res.status(404).json({ error: 'Bike not found' });
     }
 
-    await db.bike.delete({ where: { id } })
+    const success = await db.deleteBike(id);
+    
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to delete bike' });
+    }
     res.json({ message: 'Bike deleted successfully' })
   } catch (error) {
     console.error('Delete bike error:', error)
@@ -367,62 +356,60 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
     }
 
     // Verify bike belongs to company and is not already sold
-    const existingBike = await db.bike.findFirst({
-      where: { id, companyId, isSold: false }
-    })
+    const existingBike = await db.findBikeByIdAndCompany(id, companyId);
 
-    if (!existingBike) {
-      return res.status(404).json({ error: 'Bike not found or already sold' })
+    if (!existingBike || existingBike.isSold) {
+      return res.status(404).json({ error: 'Bike not found or already sold' });
     }
 
     // Create or find customer
-    let customer = await db.customer.findFirst({
-      where: {
-        aadhaarNumber: customerData.aadhaarNumber
-      }
-    })
+    let customer = await db.findCustomerByAadhaar(customerData.aadhaarNumber);
 
     if (!customer) {
-      customer = await db.customer.create({
-        data: {
-          name: customerData.name.trim(),
-          phone: customerData.phone.trim(),
-          aadhaarNumber: customerData.aadhaarNumber.trim(),
-          address: customerData.address.trim()
-        }
-      })
+      customer = await db.createCustomer({
+        name: customerData.name.trim(),
+        phone: customerData.phone.trim(),
+        aadhaarNumber: customerData.aadhaarNumber.trim(),
+        address: customerData.address.trim()
+      });
     } else {
       // Update existing customer data
-      customer = await db.customer.update({
-        where: { id: customer.id },
-        data: {
-          name: customerData.name.trim(),
-          phone: customerData.phone.trim(),
-          address: customerData.address.trim()
-        }
-      })
+      customer = await db.updateCustomer(customer.id, {
+        name: customerData.name.trim(),
+        phone: customerData.phone.trim(),
+        address: customerData.address.trim()
+      });
     }
 
-    const updatedBike = await db.bike.update({
-      where: { id },
-      data: {
-        isSold: true,
-        soldPrice: parseFloat(soldPrice),
-        customerId: customer.id,
-        updatedAt: new Date()
-      },
-      include: {
-        addedBy: {
-          select: {
-            email: true,
-            role: true
-          }
-        },
-        customer: true
-      }
-    })
+    if (!customer) {
+      return res.status(500).json({ error: 'Failed to create/update customer' });
+    }
 
-    res.json(updatedBike)
+    const updatedBike = await db.updateBike(id, {
+      isSold: true,
+      soldPrice: parseFloat(soldPrice),
+      customerId: customer.id
+    });
+
+    if (!updatedBike) {
+      return res.status(500).json({ error: 'Failed to update bike' });
+    }
+
+    // Get related data for response
+    const [addedBy] = await Promise.all([
+      db.findUserById(updatedBike.addedById)
+    ]);
+
+    const bikeWithRelations = {
+      ...updatedBike,
+      addedBy: addedBy ? {
+        email: addedBy.email,
+        role: addedBy.role
+      } : undefined,
+      customer
+    };
+
+    res.json(bikeWithRelations)
   } catch (error) {
     console.error('Mark bike as sold error:', error)
     res.status(500).json({ error: 'Failed to mark bike as sold' })
@@ -440,18 +427,20 @@ export const generateReceipt = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Company ID required' })
     }
 
-    const bike = await db.bike.findFirst({
-      where: { id, companyId },
-      include: {
-        company: true,
-        addedBy: {
-          select: { email: true }
-        }
-      }
-    })
+    const bike = await db.findBikeByIdAndCompany(id, companyId);
 
     if (!bike) {
-      return res.status(404).json({ error: 'Bike not found' })
+      return res.status(404).json({ error: 'Bike not found' });
+    }
+
+    // Get related data
+    const [company, addedBy] = await Promise.all([
+      db.findCompanyById(bike.companyId),
+      db.findUserById(bike.addedById)
+    ]);
+
+    if (!company || !addedBy) {
+      return res.status(404).json({ error: 'Missing company or user data' });
     }
 
     const doc = new PDFDocument()
@@ -461,7 +450,7 @@ export const generateReceipt = async (req: AuthRequest, res: Response) => {
     doc.pipe(res)
 
     // Header
-    doc.fontSize(20).text(bike.company.name, 50, 50)
+    doc.fontSize(20).text(company.name, 50, 50)
     doc.fontSize(14).text('Sales Receipt', 50, 80)
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 50, 100)
     doc.text(`Receipt #: ${bike.regNo}-${Date.now()}`, 50, 120)
@@ -476,7 +465,7 @@ export const generateReceipt = async (req: AuthRequest, res: Response) => {
     // Footer
     doc.fontSize(10)
       .text('Thank you for your business!', 50, 300)
-      .text(`Processed by: ${bike.addedBy.email}`, 50, 320)
+      .text(`Processed by: ${addedBy.email}`, 50, 320)
       .text(`Generated on: ${new Date().toLocaleString()}`, 50, 340)
 
     doc.end()
@@ -492,18 +481,15 @@ export const getSalesData = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const sales = await db.bike.findMany({
-      where: { companyId, isSold: true },
-      include: {
-        addedBy: {
-          select: {
-            email: true,
-            role: true
-          }
-        }
-      },
-      orderBy: { updatedAt: 'desc' }
-    })
+    const allBikes = await db.findBikesByCompany(companyId, true);
+    const sales = allBikes.filter(bike => bike.isSold);
+    
+    // Sort by updatedAt descending
+    sales.sort((a, b) => {
+      const aTime = (a.updatedAt as any) instanceof Date ? (a.updatedAt as unknown as Date).getTime() : new Date(a.updatedAt as unknown as string).getTime();
+      const bTime = (b.updatedAt as any) instanceof Date ? (b.updatedAt as unknown as Date).getTime() : new Date(b.updatedAt as unknown as string).getTime();
+      return bTime - aTime;
+    });
 
     const totalSales = sales.length
     const totalRevenue = sales.reduce((sum, sale) => sum + (sale.soldPrice || 0), 0)
@@ -543,25 +529,27 @@ export const getCompanyUsers = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' })
     }
 
-    const users = await db.user.findMany({
-      where: { companyId },
-      include: {
-        _count: {
-          select: { bikesAdded: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    })
-
-    // Remove sensitive data
-    const sanitizedUsers = users.map(user => ({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt,
-      isActive: true, // Add active status logic if needed
-      _count: user._count
-    }))
+    const users = await db.findUsersByCompany(companyId);
+    const bikes = await db.findBikesByCompany(companyId);
+    
+    // Calculate bike count for each user
+    const sanitizedUsers = users
+      .map((user: any) => {
+        const bikeCount = bikes.filter((bike: any) => bike.addedById === user.id).length;
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          isActive: true,
+          _count: { bikesAdded: bikeCount }
+        };
+      })
+      .sort((a: any, b: any) => {
+        const aTime = (a.createdAt as any) instanceof Date ? (a.createdAt as Date).getTime() : new Date(a.createdAt as unknown as string).getTime();
+        const bTime = (b.createdAt as any) instanceof Date ? (b.createdAt as Date).getTime() : new Date(b.createdAt as unknown as string).getTime();
+        return bTime - aTime;
+      });
 
     res.json(sanitizedUsers)
   } catch (error) {
@@ -591,28 +579,27 @@ export const createCompanyUser = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if user already exists
-    const existingUser = await db.user.findUnique({ where: { email: email.toLowerCase() } })
+    const existingUser = await db.findUserByEmail(email.toLowerCase());
     if (existingUser) {
-      return res.status(400).json({ error: 'Email already exists' })
+      return res.status(400).json({ error: 'Email already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
-    const user = await db.user.create({
-      data: {
-        email: email.toLowerCase(),
-        passwordHash,
-        role,
-        companyId
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true
-      }
-    })
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await db.createUser({
+      email: email.toLowerCase(),
+      passwordHash,
+      role,
+      companyId
+    });
 
-    res.status(201).json(user)
+    const sanitizedUser = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt
+    };
+
+    res.status(201).json(sanitizedUser)
   } catch (error) {
     console.error('Create company user error:', error)
     res.status(500).json({ error: 'Failed to create user' })
@@ -629,36 +616,27 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' })
     }
 
-    const [users, bikes, sales, revenue] = await Promise.all([
-      db.user.groupBy({
-        by: ['role'],
-        where: { companyId },
-        _count: { role: true }
-      }),
-      db.bike.count({ where: { companyId } }),
-      db.bike.count({ where: { companyId, isSold: true } }),
-      db.bike.aggregate({
-        where: { companyId, isSold: true },
-        _sum: { soldPrice: true, boughtPrice: true }
-      })
-    ])
+    const [users, bikes] = await Promise.all([
+      db.findUsersByCompany(companyId),
+      db.findBikesByCompany(companyId)
+    ]);
 
-    const userStats = users.reduce((acc, item) => {
-      acc[item.role.toLowerCase() + 'Users'] = item._count.role
-      return acc
-    }, {} as any)
-
-    const totalRevenue = revenue._sum.soldPrice || 0
-    const totalCost = revenue._sum.boughtPrice || 0
-    const totalProfit = totalRevenue - totalCost
+    // Calculate stats from the data
+    const adminUsers = users.filter((u: any) => u.role === 'ADMIN').length;
+    const workerUsers = users.filter((u: any) => u.role === 'WORKER').length;
+    const totalBikes = bikes.length;
+    const soldBikes = bikes.filter((b: any) => b.isSold).length;
+    const totalRevenue = bikes.filter((b: any) => b.isSold && b.soldPrice).reduce((sum: number, b: any) => sum + (b.soldPrice || 0), 0);
+    const totalCost = bikes.filter((b: any) => b.isSold && b.boughtPrice).reduce((sum: number, b: any) => sum + b.boughtPrice, 0);
+    const totalProfit = totalRevenue - totalCost;
 
     res.json({
-      totalUsers: users.reduce((sum, u) => sum + u._count.role, 0),
-      activeUsers: users.reduce((sum, u) => sum + u._count.role, 0), // Assume all active for now
-      adminUsers: userStats.adminUsers || 0,
-      workerUsers: userStats.workerUsers || 0,
-      totalBikes: bikes,
-      soldBikes: sales,
+      totalUsers: users.length,
+      activeUsers: users.length, // Assume all active for now
+      adminUsers,
+      workerUsers,
+      totalBikes,
+      soldBikes,
       totalRevenue,
       totalProfit
     })
@@ -675,10 +653,8 @@ export const getProfitReport = async (req: AuthRequest, res: Response) => {
     const companyId = req.user?.companyId
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
-    const soldBikes = await db.bike.findMany({
-      where: { companyId, isSold: true },
-      select: { boughtPrice: true, soldPrice: true }
-    })
+    const bikes = await db.findBikesByCompany(companyId);
+    const soldBikes = bikes.filter(bike => bike.isSold);
     
     const profit = soldBikes.reduce((acc, bike) => {
       return acc + ((bike.soldPrice || 0) - bike.boughtPrice);

@@ -3,15 +3,16 @@ import { db } from '../lib/db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../middleware/auth';
+import { config } from '../config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
+const JWT_SECRET = config.JWT_SECRET;
 
 // Login endpoint
 export const login = async (req: Request, res: Response) => {
   const { email, password, companyId } = req.body;
   
   try {
-    const user = await db.user.findUnique({ where: { email } });
+    const user = await db.findUserByEmail(email);
     if (!user) return res.status(400).json({ error: 'User not found' });
 
     const validPass = await bcrypt.compare(password, user.passwordHash);
@@ -37,10 +38,7 @@ export const login = async (req: Request, res: Response) => {
     );
 
     // Get company info
-    const company = effectiveCompanyId ? await db.company.findUnique({
-      where: { id: effectiveCompanyId },
-      select: { id: true, name: true, logo: true }
-    }) : null;
+    const company = effectiveCompanyId ? await db.findCompanyById(effectiveCompanyId) : null;
 
     res.header('auth-token', token).json({ 
       token, 
@@ -50,7 +48,11 @@ export const login = async (req: Request, res: Response) => {
         role: user.role,
         companyId: effectiveCompanyId
       },
-      company
+      company: company ? {
+        id: company.id,
+        name: company.name,
+        logo: company.logo
+      } : null
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -65,18 +67,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const user = await db.user.findUnique({
-      where: { id: req.user.userId },
-      include: {
-        company: {
-          select: {
-            id: true,
-            name: true,
-            logo: true
-          }
-        }
-      }
-    });
+    const user = await db.findUserById(req.user.userId, true);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -90,7 +81,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
         companyId: user.companyId,
         createdAt: user.createdAt
       },
-      company: user.company
+      company: 'company' in user ? user.company : undefined
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -120,9 +111,7 @@ export const register = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if user exists
-    const existingUser = await db.user.findUnique({ 
-      where: { email: email.toLowerCase() } 
-    });
+    const existingUser = await db.findUserByEmail(email);
     
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
@@ -133,22 +122,24 @@ export const register = async (req: AuthRequest, res: Response) => {
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Create user
-    const user = await db.user.create({
-      data: {
-        email: email.toLowerCase(),
-        passwordHash,
-        role,
-        companyId: companyId || req.user?.companyId
-      },
-      include: {
-        company: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+    const user = await db.createUser({
+      email: email.toLowerCase(),
+      passwordHash,
+      role,
+      companyId: companyId || req.user?.companyId
     });
+
+    // Get company info if companyId exists
+    let company = null;
+    if (user.companyId) {
+      const companyData = await db.findCompanyById(user.companyId);
+      if (companyData) {
+        company = {
+          id: companyData.id,
+          name: companyData.name
+        };
+      }
+    }
 
     res.status(201).json({
       message: 'User created successfully',
@@ -157,7 +148,7 @@ export const register = async (req: AuthRequest, res: Response) => {
         email: user.email,
         role: user.role,
         companyId: user.companyId,
-        company: user.company
+        company: company
       }
     });
   } catch (error) {
@@ -185,7 +176,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     }
 
     // Get user
-    const user = await db.user.findUnique({ where: { id: userId } });
+    const user = await db.findUserById(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -201,10 +192,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password
-    await db.user.update({
-      where: { id: userId },
-      data: { passwordHash: newPasswordHash }
-    });
+    await db.updateUser(userId, { passwordHash: newPasswordHash });
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {

@@ -25,20 +25,25 @@ export const errorHandler = (
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
 
-  // Prisma specific errors
-  if (err.message.includes('Unique constraint')) {
+  // Firebase/Firestore specific errors
+  if (err.message.includes('already exists') || err.message.includes('ALREADY_EXISTS')) {
     statusCode = 409;
-    message = 'Duplicate entry found';
+    message = 'Resource already exists';
   }
 
-  if (err.message.includes('Foreign key constraint')) {
-    statusCode = 400;
-    message = 'Invalid reference - related record not found';
+  if (err.message.includes('Permission denied') || err.message.includes('PERMISSION_DENIED')) {
+    statusCode = 403;
+    message = 'Permission denied';
   }
 
-  if (err.message.includes('Record to update not found')) {
+  if (err.message.includes('Not found') || err.message.includes('NOT_FOUND')) {
     statusCode = 404;
-    message = 'Record not found';
+    message = 'Resource not found';
+  }
+
+  if (err.message.includes('Invalid argument') || err.message.includes('INVALID_ARGUMENT')) {
+    statusCode = 400;
+    message = 'Invalid request data';
   }
 
   // JWT errors
