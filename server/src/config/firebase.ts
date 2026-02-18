@@ -29,14 +29,42 @@ try {
       throw new Error('Firebase credentials missing: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are required');
     }
     
-    app = admin.initializeApp({
-      credential: admin.credential.cert({
+    // Handle private key formatting for different environments
+    let privateKey = config.FIREBASE_PRIVATE_KEY;
+    
+    // Replace escaped newlines with actual newlines
+    if (privateKey.includes('\\n')) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+    
+    // Create credential object with required fields
+    const serviceAccount = {
+      type: 'service_account',
+      project_id: config.FIREBASE_PROJECT_ID,
+      private_key_id: 'firebase-key',
+      private_key: privateKey,
+      client_email: config.FIREBASE_CLIENT_EMAIL,
+      client_id: '0',
+      auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+      token_uri: 'https://oauth2.googleapis.com/token',
+      auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+    };
+    
+    console.log('Creating Firebase app with credentials...');
+    console.log('Project ID:', config.FIREBASE_PROJECT_ID);
+    console.log('Client Email:', config.FIREBASE_CLIENT_EMAIL);
+    console.log('Private Key Length:', privateKey.length);
+    console.log('Private Key Preview:', privateKey.substring(0, 50) + '...');
+    
+    try {
+      app = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
         projectId: config.FIREBASE_PROJECT_ID,
-        clientEmail: config.FIREBASE_CLIENT_EMAIL,
-        privateKey: config.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), // Handle escaped newlines
-      }),
-      projectId: config.FIREBASE_PROJECT_ID,
-    });
+      });
+    } catch (credentialError) {
+      console.error('Firebase credential error:', credentialError);
+      throw new Error(`Failed to initialize Firebase with environment credentials: ${credentialError.message}`);
+    }
   }
   
   console.log('✅ Firebase initialized successfully');

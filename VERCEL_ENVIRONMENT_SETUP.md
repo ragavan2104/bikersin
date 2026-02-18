@@ -1,0 +1,60 @@
+# 🔥 Firebase Environment Variables for Vercel
+
+## 📋 **Copy These Exact Values to Your Vercel Project Settings**
+
+Go to your Vercel project dashboard → Settings → Environment Variables and add these:
+
+### **FIREBASE_PROJECT_ID** 
+```
+bikers-2f015
+```
+
+### **FIREBASE_CLIENT_EMAIL**
+```
+firebase-adminsdk-fbsvc@bikers-2f015.iam.gserviceaccount.com
+```
+
+### **FIREBASE_PRIVATE_KEY** (Use this format for Vercel dashboard)
+```
+-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDryE/nV0J72c13\no75Bz5cHDPixj9klimQ6CIvZPDtbXi14WoCcP8PUdmYRH5CngFvJYlvJv9ojPdUA\nCgXeW4Qymp7Q7WlDEsN3ej06t7TSnLB4QsZ1nC3Q8JDLrvY1zuPIKzbPT8/dCq/4\nsGeB7c5NIRQPMs/AQfMgDsBj93W/ncAfCTS8enQRJ6k9XTgPNXHGgg5U09U0o26/\n168HCabvb3kWfG/sznst1oat92D7SIvKpJo5E288SFPwf58ZkMTYxrdTmujAjQ26\nBDLVrTjIFqoj/nsdiQKgoFXKZdXPpD8nRvNYTFQlEa9hXRrIk3GEbSGQU9rR/iI8\nKEIIAfhdAgMBAAECggEAUCE46o2wtgeMuQKod5Q1pvtFD48sBIKWUlSyNmcuYvxM\nJrFXMQLIqk18nYglMI/CYdvwBs4RM9XhLAy79tgSQuJiY+2zTsyzKkkcQvbI2KTQ\nomZLLRAhT/dZticlXJ8NsWriSy08HspxiGpnGvR3HqZFu26QxS2Ek1oAD1k7pp0u\ndRt8/rZbAF/5XucVfmNLvLKgmngjfl5YuEps51jVqW3ptRptpJCFj6PZ9xieFHts\ngzl1pBsEF6tGv1AC0BLSCnEHLi8TGuQ8Ppr8TkZtS2CS1fZczH0JJNjnnKt3YQXS\nfnM5VhK8ROlEa2nHLB2LJGplqqpYlwkYxpdeD//ZzwKBgQD62m8WWeBr8bM7N3Xm\nH+tXPd97HXqupVe4PqHSNA9T/equ+i5B7xmIJWAE9iNJU61EJ3vIXTfRPGfOmBLi\n38flw4Y51FnyrA+KF3+vS4NmlfVZm1NdOrjLow79Ut8AyOzDS4ByTBUAzjAiES2f\nL22Xgh/t/+nIzWwGG1L65GxMawKBgQDwnrioNRTZLcJlfvV4aUQjByI/NJqpPCH+\nk4THM2dp1KgLtl0UK3xLQ806SgxjUYuUP7U+UjcqIdZpshG2frfmM1YvCWFBjMy9\noS6C0vax6szHkLTJMy/fPybk9/ifQ2E1rz1KjpjwquD2RjlB6T3EhAQ/guuU75Gu\nV1j1ApwAVwKBgFiyxdbMXsssQmis2pZNMQS/DvdUXB3GvvaZxtQxrj3PqZzHP3X2\n2jtGo+X9NkrmOHzBzUXymBr21em54euwntkCQsLN8CQbbL8yQea0t7idS4ysnFR5\nv//ZHyK5m7qGURlY6AkCF+caAPD6y/veZEzPKQUZmQt0fz7FiJjIDfcTAoGBANZs\nex3af8Ox1YRhCRrOo9ubJdexZwnc/mZAy5hApK1Yxo/5aSTqQ49G0oJZLoTrTDlG\nNJte5K31DX+PId3BOtw3b1vnPfYOJP3vvuTyXsjZ9rb4q0KJDOYi/uQYXkR+5QfU\nLAhe3sfJX0PX/HpSAas4Ahke8BT/EJGOYUWll6NtAoGBAIOXSjP2wwqkuEbsrJjB\nS2lrxcTRaDBBhRewM0W5YcNWcjyK0C75WsQ0/cCuWIInKyimHQrNkna7/oh74AMW\nhs0vmPK2T3Z5wIWsH+cIs7FyXmEClhOVRDqQs0V8nHuRBHqEY8ZEFkRDuHVtf/sR\nEhTpx3DC+sWotksfzMSnSPbY\n-----END PRIVATE KEY-----\n
+```
+
+### **JWT_SECRET**
+```
+a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456789012345678901234567890abcdef123456
+```
+
+### **NODE_ENV**
+```
+production
+```
+
+### **CORS_ORIGINS**
+```
+https://bikers.ragav.dev,https://mybikers.ragav.dev,http://localhost:3000,http://localhost:3001
+```
+
+### **PORT** 
+```
+5000
+```
+
+## ⚠️ **Important Notes for Vercel**
+
+1. **Don't include quotes** when pasting into Vercel environment variables
+2. **Use `\n` format** for the private key (as shown above) 
+3. **Set all variables for Production environment**
+4. **Redeploy after adding environment variables**
+
+## 🔗 **Vercel Dashboard Steps**
+
+1. Go to https://vercel.com/dashboard
+2. Select your backend project
+3. Go to Settings → Environment Variables
+4. Click "Add New"
+5. Copy and paste each variable exactly as shown above
+6. Set Environment to "Production" 
+7. Click "Save"
+8. Redeploy your project
+
+Your Firebase authentication should work after this! 🚀
