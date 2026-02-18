@@ -34,17 +34,3 @@ export const COLLECTIONS = {
 } as const;
 
 export { admin };
-
-// Initialize Firestore
-export const firestore = getFirestore(app);
-
-// Collection names
-export const COLLECTIONS = {
-  COMPANIES: 'companies',
-  USERS: 'users',
-  BIKES: 'bikes',
-  CUSTOMERS: 'customers',
-  ANNOUNCEMENTS: 'announcements',
-} as const;
-
-export { admin };
