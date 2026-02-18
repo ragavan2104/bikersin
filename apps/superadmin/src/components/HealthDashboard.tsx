@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/Auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface HealthMetrics {
   userCount: number;
@@ -22,9 +22,9 @@ export default function HealthDashboard() {
     try {
       setError(null);
       console.log('Token:', token ? 'Present' : 'Missing');
-      console.log('Making request to:', `${API_URL}/superadmin/health`);
+      console.log('Making request to:', `${API_URL}/api/superadmin/health`);
       
-      const res = await fetch(`${API_URL}/superadmin/health`, {
+      const res = await fetch(`${API_URL}/api/superadmin/health`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'

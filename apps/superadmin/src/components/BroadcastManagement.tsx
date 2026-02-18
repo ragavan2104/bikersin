@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/Auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Company {
   id: string;
@@ -23,7 +23,7 @@ export default function BroadcastManagement() {
 
   const fetchCompanies = async () => {
     try {
-      const res = await fetch(`${API_URL}/public/companies`);
+      const res = await fetch(`${API_URL}/api/public/companies`);
       if (res.ok) {
         const data = await res.json();
         setCompanies(data);
@@ -44,7 +44,7 @@ export default function BroadcastManagement() {
     setSending(true);
 
     try {
-      const res = await fetch(`${API_URL}/superadmin/broadcasts`, {
+      const res = await fetch(`${API_URL}/api/superadmin/broadcasts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

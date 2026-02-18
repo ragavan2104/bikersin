@@ -15,7 +15,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Customer {
   id: string;
@@ -72,7 +72,7 @@ export default function CustomerManagement() {
         return;
       }
       
-      const response = await fetch(`${API_URL}/superadmin/customers`, {
+      const response = await fetch(`${API_URL}/api/superadmin/customers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -97,7 +97,7 @@ export default function CustomerManagement() {
       const token = localStorage.getItem('superadmin_token');
       if (!token) return;
       
-      const response = await fetch(`${API_URL}/superadmin/customers/stats`, {
+      const response = await fetch(`${API_URL}/api/superadmin/customers/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -127,7 +127,7 @@ export default function CustomerManagement() {
 
   const exportCustomers = async () => {
     try {
-      const response = await fetch(`${API_URL}/superadmin/customers/export`, {
+      const response = await fetch(`${API_URL}/api/superadmin/customers/export`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('superadmin_token')}`,

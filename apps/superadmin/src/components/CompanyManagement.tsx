@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/Auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Company {
   id: string;
@@ -38,7 +38,7 @@ export default function CompanyManagement() {
 
   const fetchCompanies = async () => {
     try {
-      const res = await fetch(`${API_URL}/superadmin/companies`, {
+      const res = await fetch(`${API_URL}/api/superadmin/companies`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -57,7 +57,7 @@ export default function CompanyManagement() {
   const createCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/superadmin/companies`, {
+      const res = await fetch(`${API_URL}/api/superadmin/companies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ export default function CompanyManagement() {
 
   const toggleCompanyStatus = async (id: string, currentStatus: boolean) => {
     try {
-      const res = await fetch(`${API_URL}/superadmin/companies/${id}/suspend`, {
+      const res = await fetch(`${API_URL}/api/superadmin/companies/${id}/suspend`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ export default function CompanyManagement() {
   const createUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/superadmin/users`, {
+      const res = await fetch(`${API_URL}/api/superadmin/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -126,7 +126,7 @@ export default function CompanyManagement() {
 
   const impersonateCompany = async (companyId: string) => {
     try {
-      const res = await fetch(`${API_URL}/superadmin/impersonate`, {
+      const res = await fetch(`${API_URL}/api/superadmin/impersonate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

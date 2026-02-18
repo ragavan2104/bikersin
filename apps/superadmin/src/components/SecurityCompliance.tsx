@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface SecurityLog {
   id: string;
@@ -25,7 +25,7 @@ export default function SecurityCompliance() {
           return;
         }
         
-        const response = await fetch(`${API_URL}/superadmin/security/logs`, {
+        const response = await fetch(`${API_URL}/api/superadmin/security/logs`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

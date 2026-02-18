@@ -3,7 +3,7 @@ import { useAuth } from '../context/Auth';
 import MarkAsSoldModal from './MarkAsSoldModal';
 import { apiService } from '../services/api';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Bike {
   id: string;
@@ -37,7 +37,7 @@ export default function InventoryDashboard() {
 
   const fetchBikes = async () => {
     try {
-      const res = await fetch(`${API_URL}/tenant/bikes`, {
+      const res = await fetch(`${API_URL}/api/tenant/bikes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -63,7 +63,7 @@ export default function InventoryDashboard() {
     }
     
     try {
-      const res = await fetch(`${API_URL}/tenant/bikes`, {
+      const res = await fetch(`${API_URL}/api/tenant/bikes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -277,7 +277,7 @@ export default function InventoryDashboard() {
                     )}
                     {bike.isSold && (
                       <a
-                        href={`${API_URL}/tenant/sales/receipt/${bike.id}`}
+                        href={`${API_URL}/api/tenant/sales/receipt/${bike.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-900 ml-4"

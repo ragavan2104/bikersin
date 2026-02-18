@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import MarkAsSoldModal from './MarkAsSoldModal';
 import BikeDetailsModal from './BikeDetailsModal';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function TenantDashboard() {
   const [, setUser] = useState<any>(null);
@@ -38,13 +38,13 @@ export default function TenantDashboard() {
   }, [token]);
 
   const fetchCompanies = async () => {
-      const res = await fetch(`${API_URL}/public/companies`);
+      const res = await fetch(`${API_URL}/api/public/companies`);
       if(res.ok) setCompanies(await res.json());
   };
 
   const login = async () => {
     try {
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, companyId: selectedCompanyId })
@@ -68,7 +68,7 @@ export default function TenantDashboard() {
 
   const fetchBikes = async () => {
     try {
-        const res = await fetch(`${API_URL}/bikes`, {
+        const res = await fetch(`${API_URL}/api/tenant/bikes`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         if(res.ok) setBikes(await res.json());
@@ -84,7 +84,7 @@ export default function TenantDashboard() {
         return alert('Aadhaar number must be exactly 12 digits');
       }
       try {
-        const res = await fetch(`${API_URL}/bikes`, {
+        const res = await fetch(`${API_URL}/api/tenant/bikes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(newBike)
@@ -101,7 +101,7 @@ export default function TenantDashboard() {
 
   const fetchReport = async () => {
       try {
-        const res = await fetch(`${API_URL}/reports/sales`, {
+        const res = await fetch(`${API_URL}/api/tenant/sales`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         if(res.ok) setSalesReport(await res.json());
@@ -417,7 +417,7 @@ export default function TenantDashboard() {
                 onClose={() => setSellingBike(null)}
                 onSubmit={async (soldPrice: number, customerData: any) => {
                     try {
-                        const res = await fetch(`${API_URL}/bikes/${sellingBike.id}/mark-sold`, {
+                        const res = await fetch(`${API_URL}/api/tenant/bikes/${sellingBike.id}/mark-sold`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                             body: JSON.stringify({ soldPrice, customerData })

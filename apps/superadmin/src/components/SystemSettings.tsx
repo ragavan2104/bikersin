@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface SystemSetting {
   key: string;
@@ -26,7 +26,7 @@ export default function SystemSettings() {
         return;
       }
       
-      const response = await fetch(`${API_URL}/superadmin/settings`, {
+      const response = await fetch(`${API_URL}/api/superadmin/settings`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -49,7 +49,7 @@ export default function SystemSettings() {
   const updateSetting = async (key: string, value: string) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/superadmin/settings`, {
+      const response = await fetch(`${API_URL}/api/superadmin/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

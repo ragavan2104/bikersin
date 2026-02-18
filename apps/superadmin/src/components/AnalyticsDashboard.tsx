@@ -12,7 +12,7 @@ import {
   Activity
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface SystemStats {
   totalRevenue: number;
@@ -57,13 +57,13 @@ export default function AnalyticsDashboard() {
     setLoading(true);
     try {
       const [statsRes, rankingsRes, trendsRes] = await Promise.all([
-        fetch(`${API_URL}/superadmin/analytics/system-stats`, {
+        fetch(`${API_URL}/api/superadmin/analytics/system-stats`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('superadmin_token')}`, 'Content-Type': 'application/json' }
         }),
-        fetch(`${API_URL}/superadmin/analytics/company-rankings?period=${dateRange}`, {
+        fetch(`${API_URL}/api/superadmin/analytics/company-rankings?period=${dateRange}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('superadmin_token')}`, 'Content-Type': 'application/json' }
         }),
-        fetch(`${API_URL}/superadmin/analytics/sales-trends?period=${dateRange}`, {
+        fetch(`${API_URL}/api/superadmin/analytics/sales-trends?period=${dateRange}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('superadmin_token')}`, 'Content-Type': 'application/json' }
         })
       ]);
@@ -98,7 +98,7 @@ export default function AnalyticsDashboard() {
 
   const exportReport = async () => {
     try {
-      const response = await fetch(`${API_URL}/superadmin/analytics/export?period=${dateRange}`, {
+      const response = await fetch(`${API_URL}/api/superadmin/analytics/export?period=${dateRange}`, {
         method: 'GET',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('superadmin_token')}`,

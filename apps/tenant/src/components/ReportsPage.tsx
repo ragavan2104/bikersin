@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/Auth';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface ProfitReport {
   totalProfit: number;
@@ -19,7 +19,7 @@ export default function ReportsPage() {
 
   const fetchProfitReport = async () => {
     try {
-      const res = await fetch(`${API_URL}/tenant/reports/profit`, {
+      const res = await fetch(`${API_URL}/api/tenant/reports/profit`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

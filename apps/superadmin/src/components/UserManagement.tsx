@@ -14,7 +14,7 @@ import {
   UserX
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface User {
   id: string;
@@ -60,7 +60,7 @@ export default function UserManagement() {
         return;
       }
       
-      const response = await fetch(`${API_URL}/superadmin/users`, {
+      const response = await fetch(`${API_URL}/api/superadmin/users`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -89,7 +89,7 @@ export default function UserManagement() {
         return;
       }
       
-      const response = await fetch(`${API_URL}/superadmin/companies`, {
+      const response = await fetch(`${API_URL}/api/superadmin/companies`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -111,7 +111,7 @@ export default function UserManagement() {
   const handleRoleChange = async (userId: string, newRole: string) => {
     setIsActionLoading(true);
     try {
-      const response = await fetch(`${API_URL}/superadmin/users/${userId}/role`, {
+      const response = await fetch(`${API_URL}/api/superadmin/users/${userId}/role`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ export default function UserManagement() {
   const handleResetPassword = async (userId: string) => {
     setIsActionLoading(true);
     try {
-      const response = await fetch(`${API_URL}/superadmin/users/${userId}/reset-password`, {
+      const response = await fetch(`${API_URL}/api/superadmin/users/${userId}/reset-password`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('superadmin_token')}`
@@ -155,7 +155,7 @@ export default function UserManagement() {
     
     setIsActionLoading(true);
     try {
-      const response = await fetch(`${API_URL}/superadmin/users/bulk-action`, {
+      const response = await fetch(`${API_URL}/api/superadmin/users/bulk-action`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
