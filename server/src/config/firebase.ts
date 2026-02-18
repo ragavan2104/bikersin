@@ -39,15 +39,9 @@ try {
     
     // Create credential object with required fields
     const serviceAccount = {
-      type: 'service_account',
-      project_id: config.FIREBASE_PROJECT_ID,
-      private_key_id: 'firebase-key',
-      private_key: privateKey,
-      client_email: config.FIREBASE_CLIENT_EMAIL,
-      client_id: '0',
-      auth_uri: 'https://accounts.google.com/o/oauth2/auth',
-      token_uri: 'https://oauth2.googleapis.com/token',
-      auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+      projectId: config.FIREBASE_PROJECT_ID,
+      clientEmail: config.FIREBASE_CLIENT_EMAIL,
+      privateKey: privateKey,
     };
     
     console.log('Creating Firebase app with credentials...');
@@ -61,7 +55,7 @@ try {
         credential: admin.credential.cert(serviceAccount),
         projectId: config.FIREBASE_PROJECT_ID,
       });
-    } catch (credentialError) {
+    } catch (credentialError: any) {
       console.error('Firebase credential error:', credentialError);
       throw new Error(`Failed to initialize Firebase with environment credentials: ${credentialError.message}`);
     }
