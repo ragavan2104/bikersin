@@ -191,6 +191,7 @@ export const getAllAnnouncements = async (req: AuthRequest, res: Response) => {
         const announcements = await db.findAnnouncements();
         res.json(announcements.slice(0, 50)); // Limit to 50
     } catch (error) {
+        console.error('Error fetching announcements:', error);
         res.status(500).json({ error: 'Failed to fetch announcements' });
     }
 };

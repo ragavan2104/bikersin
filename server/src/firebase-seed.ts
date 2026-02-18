@@ -1,3 +1,19 @@
+// Load environment variables first
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load test.env for development
+const testEnvPath = path.resolve(__dirname, '..', 'test.env');
+const prodEnvPath = path.resolve(__dirname, '..', '.env');
+
+if (require('fs').existsSync(testEnvPath)) {
+  dotenv.config({ path: testEnvPath });
+  console.log('✅ Loaded test.env for seeding');
+} else {
+  dotenv.config({ path: prodEnvPath });
+  console.log('✅ Loaded .env for seeding');
+}
+
 import { firestoreService } from './lib/firestore';
 import bcrypt from 'bcrypt';
 import { config } from './config/env';
@@ -205,10 +221,13 @@ async function seed() {
 
     // Create sample announcements
     console.log('📢 Creating announcements...');
+    
+    // Global announcement (no target)
     await firestoreService.createAnnouncement({
       message: 'System maintenance scheduled for this weekend from 2 AM to 6 AM. All services will be temporarily unavailable.'
     });
 
+    // Company-specific announcements
     await firestoreService.createAnnouncement({
       message: 'New inventory management features are now available! Check out the updated dashboard.',
       target: company1.id
@@ -222,6 +241,11 @@ async function seed() {
     await firestoreService.createAnnouncement({
       message: 'Your account has been temporarily suspended. Please contact the system administrator.',
       target: company3.id
+    });
+
+    // Additional global announcement
+    await firestoreService.createAnnouncement({
+      message: 'New security updates have been applied. Please log out and log back in for the changes to take effect.'
     });
 
     console.log('✅ Firebase seed data created successfully!');

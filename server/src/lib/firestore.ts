@@ -384,15 +384,66 @@ class FirestoreService {
   }
 
   async findAnnouncements(target?: string): Promise<Announcement[]> {
-    let query = firestore.collection(COLLECTIONS.ANNOUNCEMENTS).orderBy('createdAt', 'desc');
-    
-    if (target) {
-      // Get announcements for specific company or global announcements
-      query = query.where('target', 'in', [target, null]);
-    }
+    try {
+      if (target) {
+        // For targeted queries, get both specific company and global announcements separately
+        // This avoids the composite index requirement for the IN query + orderBy combination
+        const targetedQuery = firestore.collection(COLLECTIONS.ANNOUNCEMENTS)
+          .where('target', '==', target)
+          .orderBy('createdAt', 'desc')
+          .get();
 
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => doc.data() as Announcement);
+        // For global announcements, we'll get all and filter in memory to avoid index issues
+        const allQuery = firestore.collection(COLLECTIONS.ANNOUNCEMENTS)
+          .orderBy('createdAt', 'desc')
+          .get();
+
+        const [targetedSnapshot, allSnapshot] = await Promise.all([targetedQuery, allQuery]);
+
+        const targetedAnnouncements = targetedSnapshot.docs.map(doc => doc.data() as Announcement);
+        const allAnnouncements = allSnapshot.docs.map(doc => doc.data() as Announcement);
+        
+        // Filter global announcements (those without target or with empty target)
+        const globalAnnouncements = allAnnouncements.filter(ann => !ann.target || ann.target === '');
+        
+        return [...targetedAnnouncements, ...globalAnnouncements]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      } else {
+        // For admin queries without target, get all announcements
+        const query = firestore.collection(COLLECTIONS.ANNOUNCEMENTS).orderBy('createdAt', 'desc');
+        const snapshot = await query.get();
+        return snapshot.docs.map(doc => doc.data() as Announcement);
+      }
+    } catch (error) {
+      console.error('Error fetching announcements:', error);
+      
+      // Fallback: if there's still an index error, try a simpler query
+      if (error && typeof error === 'object' && 'code' in error && error.code === 9) {
+        console.log('Index error detected, falling back to simpler query...');
+        try {
+          const query = firestore.collection(COLLECTIONS.ANNOUNCEMENTS).limit(50);
+          const snapshot = await query.get();
+          const announcements = snapshot.docs.map(doc => doc.data() as Announcement);
+          
+          // Filter and sort in memory as fallback
+          let filteredAnnouncements = announcements;
+          if (target) {
+            filteredAnnouncements = announcements.filter(ann => 
+              ann.target === target || !ann.target || ann.target === ''
+            );
+          }
+          
+          return filteredAnnouncements.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        } catch (fallbackError) {
+          console.error('Fallback query also failed:', fallbackError);
+          return []; // Return empty array as final fallback
+        }
+      }
+      
+      throw new Error('Failed to fetch announcements');
+    }
   }
 
   // SYSTEM STATS
