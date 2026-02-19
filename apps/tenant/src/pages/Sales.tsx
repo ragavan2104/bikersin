@@ -103,7 +103,7 @@ export default function Sales() {
       sale.soldPrice,
       sale.profit,
       new Date(sale.soldAt).toLocaleDateString(),
-      sale.addedBy.email
+      sale.addedBy?.email || 'Unknown'
     ])
     
     return [headers, ...rows]
@@ -341,8 +341,12 @@ export default function Sales() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
-                            <div className="text-sm text-gray-900">{sale.addedBy.email.split('@')[0]}</div>
-                            <div className="text-xs text-gray-500 capitalize">{sale.addedBy.role.toLowerCase()}</div>
+                            <div className="text-sm text-gray-900">
+                              {sale.addedBy?.email?.split('@')[0] || 'Unknown'}
+                            </div>
+                            <div className="text-xs text-gray-500 capitalize">
+                              {sale.addedBy?.role?.toLowerCase() || 'unknown'}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -409,7 +413,7 @@ export default function Sales() {
                       <div className="flex justify-between items-center text-xs text-gray-500 pt-1">
                         <div className="flex items-center">
                             <User className="h-3 w-3 mr-1" />
-                            {sale.addedBy.email.split('@')[0]}
+                            {sale.addedBy?.email?.split('@')[0] || 'Unknown'}
                         </div>
                         <div className="flex items-center">
                             <Calendar className="h-3 w-3 mr-1" />

@@ -344,8 +344,12 @@ export default function Inventory() {
                             <div className="flex items-center">
                               <User className="h-4 w-4 text-gray-400 mr-2" />
                               <div>
-                                <div className="text-sm text-gray-900">{bike.addedBy.email.split('@')[0]}</div>
-                                <div className="text-xs text-gray-500 capitalize">{bike.addedBy.role.toLowerCase()}</div>
+                                <div className="text-sm text-gray-900">
+                                  {bike.addedBy?.email?.split('@')[0] || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-500 capitalize">
+                                  {bike.addedBy?.role?.toLowerCase() || 'unknown'}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -430,7 +434,7 @@ export default function Inventory() {
                           <div className="col-span-2 pt-2 border-t border-gray-100 mt-2 flex justify-between items-center">
                             <div className="flex items-center text-xs text-gray-500">
                                <User className="h-3 w-3 mr-1" />
-                               Added by {bike.addedBy.email.split('@')[0]}
+                               Added by {bike.addedBy?.email?.split('@')[0] || 'Unknown'}
                             </div>
                              {!bike.isSold && (
                                 <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${aging.color}`}>

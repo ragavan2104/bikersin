@@ -139,8 +139,12 @@ export default function BikeDetailsModal({ bikeId, onClose }: BikeDetailsModalPr
                     <div className="flex items-center">
                       <User className="h-4 w-4 text-gray-400 mr-2" />
                       <span className="text-sm text-gray-600">Added by: </span>
-                      <span className="text-sm font-medium">{details.purchaseInfo.addedBy.email}</span>
-                      <span className="text-xs text-gray-500 ml-2 capitalize">({details.purchaseInfo.addedBy.role.toLowerCase()})</span>
+                      <span className="text-sm font-medium">
+                        {details.purchaseInfo.addedBy?.email || 'Unknown'}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-2 capitalize">
+                        ({details.purchaseInfo.addedBy?.role?.toLowerCase() || 'unknown'})
+                      </span>
                     </div>
                   </div>
                 </div>
