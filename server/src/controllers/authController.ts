@@ -11,6 +11,15 @@ const JWT_SECRET = config.JWT_SECRET;
 export const login = async (req: Request, res: Response) => {
   const { email, password, companyId } = req.body;
   
+  // Validate required fields
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required' });
+  }
+  
   try {
     const user = await db.findUserByEmail(email);
     if (!user) return res.status(400).json({ error: 'User not found' });
@@ -26,7 +35,7 @@ export const login = async (req: Request, res: Response) => {
         }
     } else {
          if (companyId && user.companyId !== companyId) {
-             return res.status(403).json({ error: 'User does not belong to this company' });
+             return res.status(400).json({ error: 'User does not belong to this company' });
          }
          if (companyId) effectiveCompanyId = companyId;
     }

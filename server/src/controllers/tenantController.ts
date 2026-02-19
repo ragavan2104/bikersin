@@ -63,8 +63,25 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
       announcements
     })
   } catch (error) {
-    console.error('Dashboard data error:', error)
-    res.status(500).json({ error: 'Failed to fetch dashboard data' })
+    console.error('Dashboard data error:', {
+      error: error.message,
+      stack: error.stack,
+      companyId: req.user?.companyId,
+      userId: req.user?.userId
+    });
+    
+    // More specific error message for Firestore index issues
+    if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+      return res.status(500).json({ 
+        error: 'Database index required. Please check Vercel function logs.',
+        code: 'INDEX_REQUIRED'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch dashboard data',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 
