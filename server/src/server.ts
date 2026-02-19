@@ -2,8 +2,18 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-const envPath = path.resolve(__dirname, '..', '.env');
-dotenv.config({ path: envPath });
+// Try to load test.env first (for development), then .env (for production)
+const testEnvPath = path.resolve(__dirname, '..', 'test.env');
+const prodEnvPath = path.resolve(__dirname, '..', '.env');
+
+// Load test.env if it exists, otherwise use .env
+if (require('fs').existsSync(testEnvPath)) {
+  dotenv.config({ path: testEnvPath });
+  console.log('✅ Loaded test.env for development');
+} else {
+  dotenv.config({ path: prodEnvPath });
+  console.log('✅ Loaded .env for production');
+}
 
 import { config } from './config/env';
 import express from 'express';
