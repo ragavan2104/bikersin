@@ -5,6 +5,7 @@ import {
   Bike, 
   Customer, 
   Announcement,
+  PasswordReset,
   BaseDocument,
   UserWithCompany,
   BikeWithRelations,
@@ -226,6 +227,70 @@ class FirestoreService {
     
     if (snapshot.empty) return [];
     return snapshot.docs.map(doc => doc.data() as User);
+  }
+
+  // PASSWORD RESET OPERATIONS
+  async createPasswordReset(data: Omit<PasswordReset, keyof BaseDocument>): Promise<PasswordReset> {
+    const id = this.generateId();
+    const timestamp = this.getTimestamp();
+    
+    const passwordReset: PasswordReset = {
+      id,
+      ...data,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    await firestore.collection(COLLECTIONS.PASSWORD_RESETS).doc(id).set(passwordReset);
+    return passwordReset;
+  }
+
+  async findPasswordResetByToken(tokenHash: string): Promise<PasswordReset | null> {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PASSWORD_RESETS)
+      .where('tokenHash', '==', tokenHash)
+      .where('used', '==', false)
+      .limit(1)
+      .get();
+    
+    return snapshot.empty ? null : (snapshot.docs[0].data() as PasswordReset);
+  }
+
+  async findPasswordResetsByUserId(userId: string): Promise<PasswordReset[]> {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PASSWORD_RESETS)
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data() as PasswordReset);
+  }
+
+  async markPasswordResetAsUsed(id: string): Promise<void> {
+    await firestore
+      .collection(COLLECTIONS.PASSWORD_RESETS)
+      .doc(id)
+      .update({
+        used: true,
+        updatedAt: this.getTimestamp()
+      });
+  }
+
+  async cleanupExpiredPasswordResets(): Promise<void> {
+    const now = this.getTimestamp();
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PASSWORD_RESETS)
+      .where('expiresAt', '<', now)
+      .get();
+    
+    const batch = firestore.batch();
+    snapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    if (!snapshot.empty) {
+      await batch.commit();
+    }
   }
 
   // BIKE OPERATIONS

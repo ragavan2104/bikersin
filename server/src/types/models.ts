@@ -21,6 +21,14 @@ export interface User extends BaseDocument {
   companyId?: string;
 }
 
+// Password Reset model
+export interface PasswordReset extends BaseDocument {
+  userId: string;
+  tokenHash: string;
+  expiresAt: string; // ISO string format
+  used: boolean;
+}
+
 // Bike model
 export interface Bike extends BaseDocument {
   name: string;

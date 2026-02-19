@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Building2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 
 export default function Login() {
   const { login, companies, fetchCompanies, loading, user } = useAuth()
@@ -172,6 +172,16 @@ export default function Login() {
                 'Sign in'
               )}
             </button>
+          </div>
+
+          {/* Forgot Password Link */}
+          <div className="text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-blue-600 hover:text-blue-500 hover:underline"
+            >
+              Forgot your password?
+            </Link>
           </div>
         </form>
 

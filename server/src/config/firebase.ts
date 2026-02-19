@@ -31,6 +31,7 @@ export const COLLECTIONS = {
   BIKES: 'bikes',
   CUSTOMERS: 'customers',
   ANNOUNCEMENTS: 'announcements',
+  PASSWORD_RESETS: 'password_resets',
 } as const;
 
 export { admin };
