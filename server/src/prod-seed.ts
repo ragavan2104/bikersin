@@ -15,7 +15,7 @@ async function seedProduction() {
     console.log('Project ID:', config.FIREBASE_PROJECT_ID);
 
     // Check if companies already exist
-    const existingCompanies = await firestoreService.findCompanies();
+    const existingCompanies = await firestoreService.findAllCompanies();
     if (existingCompanies.length > 0) {
       console.log(`✅ Found ${existingCompanies.length} existing companies. Skipping seed.`);
       return;
@@ -40,8 +40,7 @@ async function seedProduction() {
       email: 'admin@bikers.com',
       passwordHash: hashedPassword,
       role: USER_ROLES.SUPERADMIN,
-      companyId: defaultCompany.id,
-      isActive: true
+      companyId: defaultCompany.id
     });
     console.log(`✅ Created superadmin: ${superadmin.email}`);
 
@@ -52,8 +51,7 @@ async function seedProduction() {
       email: 'tenant@bikers.com', 
       passwordHash: adminPassword,
       role: USER_ROLES.ADMIN,
-      companyId: defaultCompany.id,
-      isActive: true
+      companyId: defaultCompany.id
     });
     console.log(`✅ Created admin: ${admin.email}`);
 
