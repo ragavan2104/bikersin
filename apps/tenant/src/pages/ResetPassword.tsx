@@ -42,7 +42,8 @@ export default function ResetPassword() {
     setIsSubmitting(true)
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+      const response = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -60,7 +61,7 @@ export default function ResetPassword() {
       }
 
       setSuccess(true)
-      
+
       // Redirect to login after 3 seconds
       setTimeout(() => {
         navigate('/login')
