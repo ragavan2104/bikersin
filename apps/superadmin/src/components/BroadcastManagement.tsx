@@ -71,10 +71,12 @@ export default function BroadcastManagement() {
       const res = await fetch(`${API_URL}/api/public/companies`);
       if (res.ok) {
         const data = await res.json();
-        setCompanies(data);
+        // Ensure data is always an array
+        setCompanies(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       showToast('error', 'Failed to fetch companies');
+      setCompanies([]); // Ensure companies is always an array on error
     }
   };
 
@@ -86,12 +88,14 @@ export default function BroadcastManagement() {
       });
       if (res.ok) {
         const data = await res.json();
-        setBroadcasts(data);
+        // Ensure data is always an array
+        setBroadcasts(Array.isArray(data) ? data : []);
       } else {
         showToast('error', 'Failed to fetch broadcast history');
       }
     } catch (error) {
       showToast('error', 'Error fetching broadcasts');
+      setBroadcasts([]); // Ensure broadcasts is always an array on error
     } finally {
       setLoading(false);
     }
@@ -210,7 +214,10 @@ export default function BroadcastManagement() {
     return 'text-gray-500';
   };
 
-  const filteredBroadcasts = broadcasts.filter(b => {
+  // Ensure broadcasts is always an array with safe access
+  const safeBroadcasts = Array.isArray(broadcasts) ? broadcasts : [];
+
+  const filteredBroadcasts = safeBroadcasts.filter(b => {
     const matchesStatus = filters.status === 'all' || b.status === filters.status;
     const matchesTarget = filters.target === 'all' || 
       (filters.target === 'global' && b.global) ||

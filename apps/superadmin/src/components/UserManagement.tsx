@@ -69,13 +69,15 @@ export default function UserManagement() {
       
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        // Ensure data is always an array
+        setUsers(Array.isArray(data) ? data : []);
       } else {
         const errorText = await response.text();
         console.error('Failed to fetch users:', response.status, errorText);
       }
     } catch (error) {
       console.error('Failed to fetch users:', error);
+      setUsers([]); // Ensure users is always an array on error
     } finally {
       setLoading(false);
     }
@@ -98,13 +100,15 @@ export default function UserManagement() {
       
       if (response.ok) {
         const data = await response.json();
-        setCompanies(data);
+        // Ensure data is always an array
+        setCompanies(Array.isArray(data) ? data : []);
       } else {
         const errorText = await response.text();
         console.error('Failed to fetch companies:', response.status, errorText);
       }
     } catch (error) {
       console.error('Failed to fetch companies:', error);
+      setCompanies([]); // Ensure companies is always an array on error
     }
   };
 
@@ -179,7 +183,10 @@ export default function UserManagement() {
     }
   };
 
-  const filteredUsers = users.filter(user => {
+  // Ensure users is always an array with safe access
+  const safeUsers = Array.isArray(users) ? users : [];
+  
+  const filteredUsers = safeUsers.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.company?.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = !roleFilter || user.role === roleFilter;
@@ -198,10 +205,10 @@ export default function UserManagement() {
   };
 
   const stats = {
-    total: users.length,
-    superadmins: users.filter(u => u.role === 'SUPERADMIN').length,
-    admins: users.filter(u => u.role === 'ADMIN').length,
-    workers: users.filter(u => u.role === 'WORKER').length
+    total: safeUsers.length,
+    superadmins: safeUsers.filter(u => u.role === 'SUPERADMIN').length,
+    admins: safeUsers.filter(u => u.role === 'ADMIN').length,
+    workers: safeUsers.filter(u => u.role === 'WORKER').length
   };
 
   if (loading) {

@@ -45,10 +45,12 @@ export default function CompanyManagement() {
       });
       if (res.ok) {
         const data = await res.json();
-        setCompanies(data);
+        // Ensure data is always an array
+        setCompanies(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error('Failed to fetch companies:', error);
+      setCompanies([]); // Ensure companies is always an array on error
     } finally {
       setLoading(false);
     }
