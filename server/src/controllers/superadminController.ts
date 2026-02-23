@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../middleware/auth';
 import { getSystemStats, validateCompanyData, validateUserData, logAdminAction } from '../utils/adminHelpers';
 import { suspendExpiredCompanies, getCompaniesExpiringSoon } from '../middleware/companyValidity';
+import { Bike } from '../types/models';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
@@ -475,27 +476,53 @@ export const exportAnalytics = async (req: AuthRequest, res: Response) => {
 // Customer management endpoints
 export const getCustomers = async (req: AuthRequest, res: Response) => {
     try {
-        // Simplified version - would need to implement customer queries in Firestore service
-        // For now returning empty array until customer functionality is fully implemented
-        const result: any[] = [];
-        res.json(result);
+        const customers = await db.findAllCustomers();
+        const bikes = await db.findAllBikes();
+        const soldBikes = bikes.filter((b: Bike) => b.isSold && b.customerId);
+        
+        // Enhance customer data with purchase information
+        const customersWithStats = customers.map(customer => {
+            const customerBikes = soldBikes.filter((b: Bike) => b.customerId === customer.id);
+            const totalSpent = customerBikes.reduce((sum: number, bike: Bike) => sum + (bike.soldPrice || 0), 0);
+            const lastPurchase = customerBikes.length > 0 
+                ? customerBikes.sort((a: Bike, b: Bike) => new Date(b.soldAt || b.updatedAt).getTime() - new Date(a.soldAt || a.updatedAt).getTime())[0]
+                : null;
+            
+            return {
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+                aadhaarNumber: customer.aadhaarNumber,
+                address: customer.address,
+                email: customer.email || undefined,
+                createdAt: customer.createdAt,
+                totalPurchases: customerBikes.length,
+                totalSpent,
+                lastPurchaseDate: lastPurchase?.soldAt || lastPurchase?.updatedAt,
+                bikes: customerBikes.map((bike: Bike) => ({
+                    id: bike.id,
+                    make: bike.name.split(' ')[0] || 'Unknown',
+                    model: bike.name,
+                    price: bike.soldPrice || 0,
+                    purchaseDate: bike.soldAt || bike.updatedAt,
+                    companyName: bike.companyId // Would need company lookup for actual name
+                }))
+            };
+        });
+        
+        res.json(customersWithStats);
     } catch (error) {
+        console.error('Failed to fetch customers:', error);
         res.status(500).json({ error: 'Failed to fetch customers' });
     }
 };
 
 export const getCustomerStats = async (req: AuthRequest, res: Response) => {
     try {
-        // Simplified customer stats - would need proper implementation with Firestore
-        const stats = {
-            totalCustomers: 0,
-            newThisMonth: 0,
-            averageSpent: 0,
-            repeatCustomers: 0
-        };
-        
+        const stats = await db.getCustomerStats();
         res.json(stats);
     } catch (error) {
+        console.error('Failed to fetch customer stats:', error);
         res.status(500).json({ error: 'Failed to fetch customer stats' });
     }
 };

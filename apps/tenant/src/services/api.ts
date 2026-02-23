@@ -301,6 +301,19 @@ class ApiService {
     })
     return response.data
   }
+
+  // Customer methods
+  async lookupCustomerByPhone(phone: string): Promise<{
+    name: string;
+    phone: string;
+    aadhaarNumber: string;
+    address: string;
+  }> {
+    const response = await axios.get(`${API_URL}/api/tenant/customers/lookup?phone=${phone}`, {
+      headers: this.safeGetAuthHeaders()
+    });
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService()

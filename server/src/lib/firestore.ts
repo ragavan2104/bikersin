@@ -423,6 +423,17 @@ class FirestoreService {
     return snapshot.docs[0].data() as Customer;
   }
 
+  async findCustomerByPhone(phone: string): Promise<Customer | null> {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.CUSTOMERS)
+      .where('phone', '==', phone)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) return null;
+    return snapshot.docs[0].data() as Customer;
+  }
+
   async updateCustomer(id: string, data: Partial<Omit<Customer, keyof BaseDocument>>): Promise<Customer | null> {
     const updatedData = {
       ...data,
@@ -431,6 +442,66 @@ class FirestoreService {
 
     await firestore.collection(COLLECTIONS.CUSTOMERS).doc(id).update(updatedData);
     return this.findCustomerById(id);
+  }
+
+  async findAllCustomers(): Promise<Customer[]> {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.CUSTOMERS)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data() as Customer);
+  }
+
+  async findAllBikes(): Promise<Bike[]> {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.BIKES)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data() as Bike);
+  }
+
+  async getCustomerStats(): Promise<{
+    totalCustomers: number;
+    newThisMonth: number;
+    averageSpent: number;
+    repeatCustomers: number;
+  }> {
+    const customers = await this.findAllCustomers();
+    const bikes = await this.findAllBikes();
+    const soldBikes = bikes.filter((b: Bike) => b.isSold && b.customerId);
+    
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Calculate customer metrics
+    const newThisMonth = customers.filter(c => 
+      new Date(c.createdAt) >= startOfMonth
+    ).length;
+    
+    // Calculate spending per customer
+    const customerSpending = new Map<string, { totalSpent: number; purchaseCount: number }>();
+    
+    soldBikes.forEach((bike: Bike) => {
+      if (bike.customerId && bike.soldPrice) {
+        const existing = customerSpending.get(bike.customerId) || { totalSpent: 0, purchaseCount: 0 };
+        existing.totalSpent += bike.soldPrice;
+        existing.purchaseCount += 1;
+        customerSpending.set(bike.customerId, existing);
+      }
+    });
+    
+    const totalSpent = Array.from(customerSpending.values()).reduce((sum, c) => sum + c.totalSpent, 0);
+    const averageSpent = customerSpending.size > 0 ? totalSpent / customerSpending.size : 0;
+    const repeatCustomers = Array.from(customerSpending.values()).filter(c => c.purchaseCount > 1).length;
+    
+    return {
+      totalCustomers: customers.length,
+      newThisMonth,
+      averageSpent,
+      repeatCustomers
+    };
   }
 
   // ANNOUNCEMENT OPERATIONS

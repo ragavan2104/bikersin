@@ -50,6 +50,8 @@ export interface Customer extends BaseDocument {
   phone: string;
   aadhaarNumber: string;
   address: string;
+  email?: string;
+  companyId?: string; // Optional for existing customers, required for new ones
 }
 
 // Announcement model

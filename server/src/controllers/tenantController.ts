@@ -380,22 +380,42 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Bike not found or already sold' });
     }
 
-    // Create or find customer
-    let customer = await db.findCustomerByAadhaar(customerData.aadhaarNumber);
+    // Create or find customer - try phone first, then Aadhaar
+    let customer = await db.findCustomerByPhone(customerData.phone.trim());
+    
+    // If customer found by phone, verify Aadhaar matches to avoid conflicts
+    if (customer && customer.aadhaarNumber !== customerData.aadhaarNumber.trim()) {
+      // Phone exists but different Aadhaar - check by Aadhaar instead
+      customer = await db.findCustomerByAadhaar(customerData.aadhaarNumber);
+      if (customer && customer.phone !== customerData.phone.trim()) {
+        return res.status(400).json({ 
+          error: 'Aadhaar number is already associated with a different phone number'
+        });
+      }
+    }
+    
+    if (!customer) {
+      // Try to find by Aadhaar as final check
+      customer = await db.findCustomerByAadhaar(customerData.aadhaarNumber);
+    }
 
     if (!customer) {
+      // Create new customer with companyId for future filtering
       customer = await db.createCustomer({
         name: customerData.name.trim(),
         phone: customerData.phone.trim(),
         aadhaarNumber: customerData.aadhaarNumber.trim(),
-        address: customerData.address.trim()
+        address: customerData.address.trim(),
+        companyId: companyId
       });
     } else {
-      // Update existing customer data
+      // Update existing customer with latest data
       customer = await db.updateCustomer(customer.id, {
         name: customerData.name.trim(),
         phone: customerData.phone.trim(),
-        address: customerData.address.trim()
+        aadhaarNumber: customerData.aadhaarNumber.trim(),
+        address: customerData.address.trim(),
+        companyId: customer.companyId || companyId
       });
     }
 
@@ -434,6 +454,46 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to mark bike as sold' })
   }
 }
+
+// Customer lookup by phone
+export const lookupCustomerByPhone = async (req: AuthRequest, res: Response) => {
+  try {
+    const { phone } = req.query;
+    const companyId = req.user?.companyId;
+    
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    // Validate phone number format
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({ error: 'Phone number must be exactly 10 digits' });
+    }
+
+    const customer = await db.findCustomerByPhone(phone);
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // For security, only return customer if they belong to the same company or have no company set
+    if (customer.companyId && customer.companyId !== companyId) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Return customer data without sensitive information
+    res.json({
+      name: customer.name,
+      phone: customer.phone,
+      aadhaarNumber: customer.aadhaarNumber,
+      address: customer.address
+    });
+  } catch (error) {
+    console.error('Customer lookup error:', error);
+    res.status(500).json({ error: 'Failed to lookup customer' });
+  }
+};
 
 // PDF Receipt Generation
 export const generateReceipt = async (req: AuthRequest, res: Response) => {

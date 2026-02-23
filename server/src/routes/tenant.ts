@@ -18,6 +18,7 @@ import {
   updateBike,
   deleteBike,
   markBikeAsSold,
+  lookupCustomerByPhone,
 
   // PDF & Reports
   generateReceipt,
@@ -71,6 +72,9 @@ router.post('/bikes', validateRequest(bikeValidationRules), addBike);
 router.put('/bikes/:id', updateBike);
 router.delete('/bikes/:id', deleteBike);
 router.patch('/bikes/:id/mark-sold', validateRequest(soldBikeValidationRules), markBikeAsSold);
+
+// Customer Management
+router.get('/customers/lookup', lookupCustomerByPhone);
 
 // PDF & Reports
 router.post('/bikes/:id/receipt', pdfLimiter, generateReceipt);

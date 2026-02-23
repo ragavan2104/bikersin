@@ -35,6 +35,8 @@ export default function MarkAsSoldModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [generateReceipt, setGenerateReceipt] = useState(true)
+  const [isLookingUp, setIsLookingUp] = useState(false)
+  const [lookupMessage, setLookupMessage] = useState('')
 
   const profit = soldPrice ? parseFloat(soldPrice) - bike.boughtPrice : 0
   const profitMargin = soldPrice ? (profit / parseFloat(soldPrice)) * 100 : 0
@@ -85,7 +87,12 @@ export default function MarkAsSoldModal({
       
       onClose()
     } catch (err: any) {
-      setError(err.message || 'Failed to mark bike as sold')
+      // Handle specific error messages from the backend
+      if (err.response?.data?.error) {
+        setError(err.response.data.error)
+      } else {
+        setError(err.message || 'Failed to mark bike as sold')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -106,6 +113,48 @@ export default function MarkAsSoldModal({
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Failed to generate PDF receipt:', err)
+    }
+  }
+
+  const lookupCustomerByPhone = async (phone: string) => {
+    if (!phone || phone.length !== 10) {
+      setLookupMessage('')
+      return
+    }
+
+    setIsLookingUp(true)
+    setLookupMessage('')
+    
+    try {
+      const customer = await apiService.lookupCustomerByPhone(phone)
+      setCustomerData({
+        name: customer.name,
+        phone: customer.phone,
+        aadhaarNumber: customer.aadhaarNumber,
+        address: customer.address
+      })
+      setLookupMessage('✅ Customer found and details filled automatically!')
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        setLookupMessage('ℹ️ No customer found with this phone number. You can create a new customer.')
+      } else {
+        setLookupMessage('❌ Failed to lookup customer. Please try again.')
+        console.error('Customer lookup error:', error)
+      }
+    } finally {
+      setIsLookingUp(false)
+    }
+  }
+
+  const handlePhoneChange = (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, '')
+    setCustomerData({ ...customerData, phone: cleanPhone })
+    
+    // Auto-lookup when phone number is complete
+    if (cleanPhone.length === 10) {
+      lookupCustomerByPhone(cleanPhone)
+    } else {
+      setLookupMessage('')
     }
   }
 
@@ -200,6 +249,7 @@ export default function MarkAsSoldModal({
                     <div>
                       <label htmlFor="customerPhone" className="block text-sm font-medium text-gray-700">
                         Phone Number
+                        {isLookingUp && <span className="ml-2 text-blue-500 text-xs">(Looking up...)</span>}
                       </label>
                       <input
                         type="text"
@@ -207,10 +257,18 @@ export default function MarkAsSoldModal({
                         required
                         maxLength={10}
                         value={customerData.phone}
-                        onChange={(e) => setCustomerData({ ...customerData, phone: e.target.value.replace(/\D/g, '') })}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="Enter 10-digit phone number"
                       />
+                      {lookupMessage && (
+                        <p className={`mt-1 text-xs ${
+                          lookupMessage.includes('✅') ? 'text-green-600' :
+                          lookupMessage.includes('ℹ️') ? 'text-blue-600' : 'text-red-600'
+                        }`}>
+                          {lookupMessage}
+                        </p>
+                      )}
                     </div>
 
                     <div>
