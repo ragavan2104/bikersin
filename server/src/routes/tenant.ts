@@ -37,7 +37,27 @@ import { markAnnouncementRead } from '../controllers/superadminController';
 
 const router = Router();
 
-// Apply middleware to all tenant routes
+// Debug routes (no auth required) - must be BEFORE middleware
+router.get('/announcements/debug', (req, res) => {
+    res.json({
+        message: 'Announcements debug endpoint working',
+        method: req.method,
+        path: req.path,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Test route for PATCH method
+router.patch('/announcements/test/:id', (req, res) => {
+    res.json({
+        message: 'PATCH method working',
+        method: req.method,
+        params: req.params,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Apply middleware to all tenant routes (except debug routes above)
 router.use(maintenanceGuard);
 router.use(verifyToken, authorizeRole(['ADMIN', 'WORKER', 'SUPERADMIN']), tenantGuard);
 
@@ -68,6 +88,21 @@ router.patch('/bikes/:id/sold', markBikeAsSold); // Keep for existing integratio
 router.get('/reports/profit', getProfitReport);
 
 // Announcement management
-router.patch('/announcements/:id/read', markAnnouncementRead);
+// Handle CORS preflight for announcement read endpoint
+router.options('/announcements/:id/read', (req, res) => {
+    res.header('Access-Control-Allow-Methods', 'PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.status(200).send();
+});
+
+router.patch('/announcements/:id/read', (req, res, next) => {
+    console.log('PATCH /announcements/:id/read called with:', {
+        method: req.method,
+        params: req.params,
+        url: req.url,
+        originalUrl: req.originalUrl
+    });
+    next();
+}, markAnnouncementRead);
 
 export default router;

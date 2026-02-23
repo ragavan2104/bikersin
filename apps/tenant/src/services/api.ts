@@ -293,6 +293,14 @@ class ApiService {
     })
     return response.data
   }
+
+  // Announcement methods
+  async markAnnouncementAsRead(announcementId: string): Promise<{ success: boolean; message: string }> {
+    const response = await axios.patch(`${API_URL}/api/tenant/announcements/${announcementId}/read`, {}, {
+      headers: this.safeGetAuthHeaders()
+    })
+    return response.data
+  }
 }
 
 export const apiService = new ApiService()

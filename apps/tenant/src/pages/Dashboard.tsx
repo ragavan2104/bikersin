@@ -40,19 +40,19 @@ export default function Dashboard() {
     }
   }
 
-  const dismissAnnouncement = (announcementId: string) => {
+  const dismissAnnouncement = async (announcementId: string) => {
     const updated = [...dismissedAnnouncements, announcementId]
     setDismissedAnnouncements(updated)
     localStorage.setItem('dismissedAnnouncements', JSON.stringify(updated))
     
-    // Mark as read on server
-    fetch(`/api/tenant/announcements/${announcementId}/read`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    }).catch(err => console.error('Failed to mark announcement as read:', err))
+    // Mark as read on server using API service
+    try {
+      await apiService.markAnnouncementAsRead(announcementId)
+      console.log('Announcement marked as read successfully')
+    } catch (err: any) {
+      console.error('Failed to mark announcement as read:', err)
+      // Show error in UI but don't revert the dismissal since it's stored locally
+    }
   }
 
   const fetchAllAnnouncements = async () => {

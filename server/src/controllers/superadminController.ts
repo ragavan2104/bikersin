@@ -565,22 +565,46 @@ export const deleteBroadcast = async (req: AuthRequest, res: Response) => {
 // Mark announcement as read (for tenant users)
 export const markAnnouncementRead = async (req: AuthRequest, res: Response) => {
     try {
+        console.log('Mark announcement read - Method:', req.method, 'Params:', req.params, 'User:', req.user?.userId);
+        
         const { id } = req.params;
         
+        if (!id || id.trim().length === 0) {
+            return res.status(400).json({ 
+                error: 'Announcement ID is required',
+                message: 'Please provide a valid announcement ID'
+            });
+        }
+        
         if (!req.user?.userId) {
-            return res.status(401).json({ error: 'User ID required' });
+            return res.status(401).json({ 
+                error: 'User ID required',
+                message: 'You must be logged in to mark announcements as read'
+            });
         }
         
         const success = await db.markAnnouncementAsRead(id, req.user.userId);
         
         if (success) {
-            res.json({ message: 'Announcement marked as read', id });
+            console.log(`Announcement ${id} marked as read by user ${req.user.userId}`);
+            res.json({ 
+                success: true,
+                message: 'Announcement marked as read', 
+                id,
+                userId: req.user.userId
+            });
         } else {
-            res.status(404).json({ error: 'Announcement not found' });
+            res.status(404).json({ 
+                error: 'Announcement not found',
+                message: `No announcement found with ID: ${id}`
+            });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Mark announcement read error:', error);
-        res.status(500).json({ error: 'Failed to mark announcement as read' });
+        res.status(500).json({ 
+            error: 'Failed to mark announcement as read',
+            message: error.message
+        });
     }
 };
 
