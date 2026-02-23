@@ -39,6 +39,9 @@ export default function SystemSettings() {
     type: 'emergency'
   });
 
+  // Ensure settings is always an array with double protection
+  const safeSettings = Array.isArray(settings) ? settings : [];
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -60,12 +63,19 @@ export default function SystemSettings() {
       
       if (response.ok) {
         const data = await response.json();
-        // Ensure data is always an array
-        const settingsArray = Array.isArray(data) ? data : [];
+        // Ensure data is always an array with comprehensive checks
+        let settingsArray: SystemSetting[] = [];
+        if (Array.isArray(data)) {
+          settingsArray = data;
+        } else if (data && typeof data === 'object' && Array.isArray(data.settings)) {
+          settingsArray = data.settings;
+        } else {
+          console.warn('Unexpected settings data format:', data);
+        }
         setSettings(settingsArray);
       } else {
         console.error('Failed to fetch settings:', response.status);
-        setSettings([]); // Set empty array on error
+        setSettings([]);
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
@@ -109,19 +119,17 @@ export default function SystemSettings() {
   };
 
   const openMaintenanceModal = () => {
-    // Defensive check for settings array
-    if (!Array.isArray(settings)) {
-      setShowMaintenanceModal(true);
-      return;
-    }
-    
-    const maintenanceSetting = settings.find(s => s.key === 'maintenance_mode');
-    if (maintenanceSetting?.metadata) {
-      setMaintenanceForm({
-        enabled: maintenanceSetting.value === 'true',
-        message: maintenanceSetting.metadata.message || 'System is under maintenance. Please try again later.',
-        type: maintenanceSetting.metadata.type || 'emergency'
-      });
+    try {
+      const maintenanceSetting = safeSettings.find(s => s?.key === 'maintenance_mode');
+      if (maintenanceSetting?.metadata) {
+        setMaintenanceForm({
+          enabled: maintenanceSetting.value === 'true',
+          message: maintenanceSetting.metadata.message || 'System is under maintenance. Please try again later.',
+          type: maintenanceSetting.metadata.type || 'emergency'
+        });
+      }
+    } catch (error) {
+      console.error('Error opening maintenance modal:', error);
     }
     setShowMaintenanceModal(true);
   };
@@ -138,23 +146,24 @@ export default function SystemSettings() {
   };
 
   const getMaintenanceStatus = () => {
-    // Defensive check to ensure settings is an array
-    if (!Array.isArray(settings)) {
+    try {
+      // Use the safe settings array
+      const maintenanceSetting = safeSettings.find(s => s?.key === 'maintenance_mode');
+      const isEnabled = maintenanceSetting?.value === 'true';
+      
+      if (!isEnabled) {
+        return { status: 'Normal Operation', icon: CheckCircle, color: 'text-green-600', bgColor: 'bg-green-50' };
+      }
+      
+      if (maintenanceSetting?.metadata?.type === 'planned') {
+        return { status: 'Scheduled Maintenance', icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' };
+      }
+      
+      return { status: 'Emergency Maintenance', icon: AlertTriangle, color: 'text-red-600', bgColor: 'bg-red-50' };
+    } catch (error) {
+      console.error('Error getting maintenance status:', error);
       return { status: 'Normal Operation', icon: CheckCircle, color: 'text-green-600', bgColor: 'bg-green-50' };
     }
-    
-    const maintenanceSetting = settings.find(s => s.key === 'maintenance_mode');
-    const isEnabled = maintenanceSetting?.value === 'true';
-    
-    if (!isEnabled) {
-      return { status: 'Normal Operation', icon: CheckCircle, color: 'text-green-600', bgColor: 'bg-green-50' };
-    }
-    
-    if (maintenanceSetting?.metadata?.type === 'planned') {
-      return { status: 'Scheduled Maintenance', icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' };
-    }
-    
-    return { status: 'Emergency Maintenance', icon: AlertTriangle, color: 'text-red-600', bgColor: 'bg-red-50' };
   };
 
   if (loading) {
@@ -166,7 +175,13 @@ export default function SystemSettings() {
   }
 
   const maintenanceStatus = getMaintenanceStatus();
-  const maintenanceSetting = Array.isArray(settings) ? settings.find(s => s.key === 'maintenance_mode') : undefined;
+  let maintenanceSetting: SystemSetting | undefined;
+  try {
+    maintenanceSetting = safeSettings.find(s => s?.key === 'maintenance_mode');
+  } catch (error) {
+    console.error('Error finding maintenance setting:', error);
+    maintenanceSetting = undefined;
+  }
 
   return (
     <div className="space-y-6">
@@ -207,35 +222,44 @@ export default function SystemSettings() {
           <h3 className="text-lg font-semibold text-gray-900">Configuration Settings</h3>
         </div>
         <div className="p-6 space-y-6">
-          {Array.isArray(settings) && settings.filter(s => s.key !== 'maintenance_mode').map((setting) => (
-            <div key={setting.key} className="flex items-center justify-between">
-              <div className="flex-1">
-                <h4 className="text-sm font-medium text-gray-900">{setting.key}</h4>
-                <p className="text-sm text-gray-500">{setting.description}</p>
-              </div>
-              <div className="ml-4">
-                {setting.type === 'boolean' ? (
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={setting.value === 'true'}
-                      onChange={(e) => updateSetting(setting.key, e.target.checked.toString())}
-                      className="form-checkbox h-4 w-4 text-blue-600"
-                      disabled={saving}
-                    />
-                  </label>
-                ) : (
-                  <input
-                    type={setting.type}
-                    value={setting.value}
-                    onChange={(e) => updateSetting(setting.key, e.target.value)}
-                    className="w-32 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={saving}
-                  />
-                )}
-              </div>
-            </div>
-          ))}
+          {(() => {
+            try {
+              return safeSettings
+                .filter(s => s?.key && s.key !== 'maintenance_mode')
+                .map((setting) => (
+                <div key={setting.key} className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-900">{setting.key}</h4>
+                    <p className="text-sm text-gray-500">{setting.description}</p>
+                  </div>
+                  <div className="ml-4">
+                    {setting.type === 'boolean' ? (
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={setting.value === 'true'}
+                          onChange={(e) => updateSetting(setting.key, e.target.checked.toString())}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                          disabled={saving}
+                        />
+                      </label>
+                    ) : (
+                      <input
+                        type={setting.type}
+                        value={setting.value}
+                        onChange={(e) => updateSetting(setting.key, e.target.value)}
+                        className="w-32 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={saving}
+                      />
+                    )}
+                  </div>
+                </div>
+              ));
+            } catch (error) {
+              console.error('Error rendering settings:', error);
+              return <div className="text-gray-500">No settings available</div>;
+            }
+          })()}
         </div>
       </div>
 
