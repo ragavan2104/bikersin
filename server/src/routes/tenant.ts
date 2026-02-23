@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { verifyToken, authorizeRole, tenantGuard } from '../middleware/auth';
-import { maintenanceGuard } from '../middleware/maintenance';
 import {
   validateRequest,
   bikeValidationRules,
@@ -58,7 +57,6 @@ router.patch('/announcements/test/:id', (req, res) => {
 });
 
 // Apply middleware to all tenant routes (except debug routes above)
-router.use(maintenanceGuard);
 router.use(verifyToken, authorizeRole(['ADMIN', 'WORKER', 'SUPERADMIN']), tenantGuard);
 
 // Dashboard

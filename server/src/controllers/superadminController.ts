@@ -630,14 +630,25 @@ export const getSecurityLogs = async (req: AuthRequest, res: Response) => {
 
 export const getSystemSettings = async (req: AuthRequest, res: Response) => {
     try {
-        // Read current system settings
-        const { getMaintenanceMode } = await import('../utils/systemConfig')
+        // Read current system settings from new persistent system
+        const { getMaintenanceSettings } = await import('../utils/systemConfig')
+        const maintenanceSettings = await getMaintenanceSettings()
+        
         const settings = [
             {
                 key: 'maintenance_mode',
-                value: getMaintenanceMode() ? 'true' : 'false',
+                value: maintenanceSettings.enabled ? 'true' : 'false',
                 description: 'Enable maintenance mode',
-                type: 'boolean'
+                type: 'boolean',
+                metadata: {
+                    message: maintenanceSettings.message,
+                    type: maintenanceSettings.type,
+                    startAt: maintenanceSettings.startAt?.toISOString(),
+                    endAt: maintenanceSettings.endAt?.toISOString(),
+                    updatedBy: maintenanceSettings.updatedBy,
+                    updatedAt: maintenanceSettings.updatedAt,
+                    blockedRequestCount: maintenanceSettings.blockedRequestCount || 0
+                }
             },
             {
                 key: 'max_file_size',
@@ -647,14 +658,18 @@ export const getSystemSettings = async (req: AuthRequest, res: Response) => {
             }
         ]
         res.json(settings)
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch system settings' });
+    } catch (error: any) {
+        console.error('Failed to fetch system settings:', error)
+        res.status(500).json({ 
+            error: 'Failed to fetch system settings',
+            message: error.message 
+        });
     }
 };
 
 export const updateSystemSetting = async (req: AuthRequest, res: Response) => {
     try {
-        const { key, value } = req.body
+        const { key, value, options = {} } = req.body
         if (!key) {
             return res.status(400).json({ error: 'Setting key is required' })
         }
@@ -662,8 +677,34 @@ export const updateSystemSetting = async (req: AuthRequest, res: Response) => {
         if (key === 'maintenance_mode') {
             const { setMaintenanceMode } = await import('../utils/systemConfig')
             const enabled = value === 'true' || value === true
-            setMaintenanceMode(Boolean(enabled))
-            return res.json({ message: 'Maintenance mode updated', maintenance_mode: enabled })
+            
+            // Extract maintenance options from request
+            const maintenanceOptions: any = {}
+            if (options.message) maintenanceOptions.message = options.message
+            if (options.type) maintenanceOptions.type = options.type
+            if (options.startAt) maintenanceOptions.startAt = new Date(options.startAt)
+            if (options.endAt) maintenanceOptions.endAt = new Date(options.endAt)
+            
+            const updatedSettings = await setMaintenanceMode(
+                enabled, 
+                req.user!.userId, 
+                options.reason || `Maintenance mode ${enabled ? 'enabled' : 'disabled'} via API`,
+                maintenanceOptions
+            )
+            
+            return res.json({ 
+                message: 'Maintenance mode updated successfully',
+                maintenance_mode: enabled,
+                settings: {
+                    enabled: updatedSettings.enabled,
+                    message: updatedSettings.message,
+                    type: updatedSettings.type,
+                    startAt: updatedSettings.startAt?.toISOString(),
+                    endAt: updatedSettings.endAt?.toISOString(),
+                    updatedBy: updatedSettings.updatedBy,
+                    updatedAt: updatedSettings.updatedAt
+                }
+            })
         }
 
         // For other settings, just acknowledge for now

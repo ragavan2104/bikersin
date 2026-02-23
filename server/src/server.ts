@@ -27,6 +27,7 @@ import publicRoutes from './routes/public';
 
 // Middleware imports
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { maintenanceGuard } from './middleware/maintenance';
 
 const app = express();
 const PORT = config.PORT;
@@ -50,6 +51,10 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Global maintenance guard (applied to all routes except allowlisted ones)
+// The guard internally checks the allowlist and bypasses for allowed paths
+app.use(maintenanceGuard);
 
 // Routes
 app.use('/api/auth', authRoutes);

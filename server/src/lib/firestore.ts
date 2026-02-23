@@ -9,7 +9,8 @@ import {
   BaseDocument,
   UserWithCompany,
   BikeWithRelations,
-  CompanyWithStats
+  CompanyWithStats,
+  MaintenanceSettings
 } from '../types/models';
 
 class FirestoreService {
@@ -669,6 +670,43 @@ class FirestoreService {
       console.error('Error marking announcement as read:', error);
       throw error;
     }
+  }
+
+  // MAINTENANCE SETTINGS OPERATIONS
+  async getMaintenanceSettings(): Promise<MaintenanceSettings | null> {
+    try {
+      const doc = await firestore.collection(COLLECTIONS.SYSTEM_SETTINGS).doc('maintenance').get();
+      return doc.exists ? (doc.data() as MaintenanceSettings) : null;
+    } catch (error) {
+      console.error('Error getting maintenance settings:', error);
+      return null;
+    }
+  }
+
+  async createMaintenanceSettings(data: Omit<MaintenanceSettings, keyof BaseDocument>): Promise<MaintenanceSettings> {
+    const timestamp = this.getTimestamp();
+    
+    const settings: MaintenanceSettings = {
+      id: 'maintenance',
+      ...data,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    await firestore.collection(COLLECTIONS.SYSTEM_SETTINGS).doc('maintenance').set(settings);
+    return settings;
+  }
+
+  async updateMaintenanceSettings(id: string, updates: Partial<MaintenanceSettings>): Promise<MaintenanceSettings> {
+    const updateData = {
+      ...updates,
+      updatedAt: this.getTimestamp(),
+    };
+
+    await firestore.collection(COLLECTIONS.SYSTEM_SETTINGS).doc(id).update(updateData);
+    
+    const doc = await firestore.collection(COLLECTIONS.SYSTEM_SETTINGS).doc(id).get();
+    return doc.data() as MaintenanceSettings;
   }
 }
 

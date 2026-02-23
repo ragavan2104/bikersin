@@ -82,3 +82,23 @@ export interface CompanyWithStats extends Company {
   totalRevenue?: number;
   totalProfit?: number;
 }
+
+// System configuration interfaces
+export interface MaintenanceSettings extends BaseDocument {
+  enabled: boolean;
+  message: string;
+  startAt?: Date;
+  endAt?: Date;
+  updatedBy: string;
+  type: 'emergency' | 'planned';
+  allowedPaths: string[];
+  blockedRequestCount: number;
+}
+
+export interface SystemSetting {
+  key: string;
+  value: string;
+  description: string;
+  updatedAt: Date;
+  updatedBy?: string;
+}
