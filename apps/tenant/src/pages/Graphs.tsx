@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-    BarChart,
     Bar,
     XAxis,
     YAxis,
@@ -8,8 +7,6 @@ import {
     Tooltip,
     ResponsiveContainer,
     Legend,
-    AreaChart,
-    Area,
     LineChart,
     Line,
     PieChart,
@@ -23,9 +20,7 @@ import {
     TrendingDown,
     IndianRupee,
     BarChart3,
-    Download,
-    Calendar,
-    RefreshCw
+    Download
 } from 'lucide-react'
 
 export default function Graphs() {
@@ -52,8 +47,8 @@ export default function Graphs() {
     const [startDate, setStartDate] = useState<string>('')
     const [endDate, setEndDate] = useState<string>('')
 
-    // Chart colors
-    const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316']
+    // Chart colors (for future use)
+    // const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316']
 
     useEffect(() => {
         fetchAnalytics()
@@ -113,7 +108,7 @@ export default function Graphs() {
 
     const pieChartData = useMemo(() => {
         if (!analyticsData.summary) return []
-        const { totalBikes, soldBikes, availableBikes } = analyticsData.summary
+        const { soldBikes, availableBikes } = analyticsData.summary
         return [
             { name: 'Sold', value: soldBikes, color: '#10B981' },
             { name: 'Available', value: availableBikes, color: '#3B82F6' }
@@ -190,8 +185,14 @@ export default function Graphs() {
         return null
     }
 
-    const KPICard = ({ title, value, icon: Icon, trend, color = 'blue' }: any) => {
-        const colorClasses = {
+    const KPICard = ({ title, value, icon: Icon, trend, color = 'blue' }: {
+        title: string;
+        value: string;
+        icon: any;
+        trend?: number;
+        color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple';
+    }) => {
+        const colorClasses: Record<string, string> = {
             blue: 'bg-blue-50 text-blue-600 border-blue-200',
             green: 'bg-green-50 text-green-600 border-green-200',
             yellow: 'bg-yellow-50 text-yellow-600 border-yellow-200',
@@ -426,9 +427,9 @@ export default function Graphs() {
                                             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                                             <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => formatCurrency(value)} />
                                             <Tooltip 
-                                                formatter={(value: any, name: string) => [
+                                                formatter={(value: any, name?: string) => [
                                                     name === 'count' ? value : formatCurrency(value), 
-                                                    name === 'count' ? 'Sales Count' : name.charAt(0).toUpperCase() + name.slice(1)
+                                                    name === 'count' ? 'Sales Count' : name ? name.charAt(0).toUpperCase() + name.slice(1) : ''
                                                 ]}
                                             />
                                             <Legend />
