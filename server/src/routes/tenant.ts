@@ -33,6 +33,7 @@ import {
   getProfitReport,
   getBikeAnalytics
 } from '../controllers/tenantController';
+import { markAnnouncementRead } from '../controllers/superadminController';
 
 const router = Router();
 
@@ -65,5 +66,8 @@ router.get('/admin/stats', authorizeRole(['ADMIN']), getCompanyStats);
 router.post('/bike', createBike); // Keep for existing integrations
 router.patch('/bikes/:id/sold', markBikeAsSold); // Keep for existing integrations
 router.get('/reports/profit', getProfitReport);
+
+// Announcement management
+router.patch('/announcements/:id/read', markAnnouncementRead);
 
 export default router;

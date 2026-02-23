@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { 
   TrendingUp, 
   Package, 
-  
   AlertTriangle,
-  BarChart3,IndianRupee
+  BarChart3,
+  IndianRupee,
+  X,
+  Eye,
+  Calendar
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { apiService, type DashboardStats } from '../services/api'
@@ -14,6 +17,12 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>(() => {
+    const stored = localStorage.getItem('dismissedAnnouncements')
+    return stored ? JSON.parse(stored) : []
+  })
+  const [showAllAnnouncements, setShowAllAnnouncements] = useState(false)
+  const [allAnnouncements, setAllAnnouncements] = useState<any[]>([])
 
   useEffect(() => {
     fetchDashboardData()
@@ -31,6 +40,45 @@ export default function Dashboard() {
     }
   }
 
+  const dismissAnnouncement = (announcementId: string) => {
+    const updated = [...dismissedAnnouncements, announcementId]
+    setDismissedAnnouncements(updated)
+    localStorage.setItem('dismissedAnnouncements', JSON.stringify(updated))
+    
+    // Mark as read on server
+    fetch(`/api/tenant/announcements/${announcementId}/read`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    }).catch(err => console.error('Failed to mark announcement as read:', err))
+  }
+
+  const fetchAllAnnouncements = async () => {
+    try {
+      // Since we don't have a dedicated endpoint yet, we'll use the dashboard announcements
+      // In a real implementation, you'd call a paginated announcements endpoint
+      const data = await apiService.getDashboardData()
+      setAllAnnouncements(data.announcements || [])
+    } catch (err) {
+      console.error('Failed to fetch all announcements:', err)
+    }
+  }
+
+  const openAllAnnouncements = () => {
+    fetchAllAnnouncements()
+    setShowAllAnnouncements(true)
+  }
+
+  // Filter out dismissed announcements
+  const visibleAnnouncements = useMemo(() => {
+    if (!stats?.announcements) return []
+    return stats.announcements.filter((announcement: any) => 
+      !dismissedAnnouncements.includes(announcement.id)
+    )
+  }, [stats?.announcements, dismissedAnnouncements])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -45,6 +93,13 @@ export default function Dashboard() {
         <div className="text-sm text-red-700">{error}</div>
       </div>
     )
+  }
+
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
   }
 
   const statCards = [
@@ -101,7 +156,7 @@ export default function Dashboard() {
             Dashboard
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Welcome back, {user?.email}! Here's what's happening at {selectedCompany?.name}
+            {getGreeting()}, {user?.email}! Here's what's happening at {selectedCompany?.name}
           </p>
         </div>
         <div className="mt-4 flex md:mt-0 md:ml-4">
@@ -111,21 +166,62 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Announcements */}
-      {stats?.announcements && stats.announcements.length > 0 && (
+      {/* Enhanced Announcements */}
+      {visibleAnnouncements && visibleAnnouncements.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 text-blue-400" />
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Announcements
-              </h3>
-              <div className="mt-2 text-sm text-blue-700 space-y-1">
-                {stats.announcements.slice(0, 3).map((announcement: any) => (
-                  <p key={announcement.id}>{announcement.message}</p>
-                ))}
+          <div className="flex justify-between items-start">
+            <div className="flex flex-1">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-blue-400" />
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    System Announcements
+                  </h3>
+                  {stats?.announcements && stats.announcements.length > visibleAnnouncements.length && (
+                    <button
+                      onClick={openAllAnnouncements}
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      View All ({stats.announcements.length})
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 space-y-2">
+                  {visibleAnnouncements.slice(0, 3).map((announcement: any) => (
+                    <div key={announcement.id} className="flex justify-between items-start bg-white rounded p-3 border border-blue-100">
+                      <div className="flex-1">
+                        {announcement.title && (
+                          <div className="text-sm font-medium text-blue-900">{announcement.title}</div>
+                        )}
+                        <p className="text-sm text-blue-700">{announcement.message}</p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          <Calendar className="inline h-3 w-3 mr-1" />
+                          {new Date(announcement.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => dismissAnnouncement(announcement.id)}
+                        className="ml-3 text-blue-400 hover:text-blue-600 flex-shrink-0"
+                        title="Dismiss announcement"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {visibleAnnouncements.length > 3 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={openAllAnnouncements}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      View {visibleAnnouncements.length - 3} more announcements
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -170,75 +266,100 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Recent Sales */}
+      {/* Recent Sales */}
+      {stats?.recentSales && stats.recentSales.length > 0 && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
               Recent Sales
             </h3>
-            <div className="space-y-3">
-              {stats?.recentSales?.slice(0, 5).map((sale: any) => (
-                <div key={sale.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{sale.name}</p>
-                    <p className="text-sm text-gray-500">{sale.regNo}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-green-600">
-                      ₹{sale.soldPrice?.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(sale.updatedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              )) || (
-                <p className="text-sm text-gray-500 italic">No recent sales</p>
-              )}
+            <div className="flow-root">
+              <ul className="-my-5 divide-y divide-gray-200">
+                {stats.recentSales.map((sale: any) => (
+                  <li key={sale.id} className="py-5">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex-shrink-0">
+                        <Package className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {sale.name}
+                        </p>
+                        <p className="text-sm text-gray-500 truncate">
+                          Reg: {sale.regNo}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-sm font-medium text-green-600">
+                        ₹{sale.soldPrice?.toLocaleString()}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Quick Stats */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Performance Metrics
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Inventory Turnover</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {stats?.soldBikes && stats?.totalBikes
-                    ? `${((stats.soldBikes / stats.totalBikes) * 100).toFixed(1)}%`
-                    : '0%'
-                  }
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Average Profit per Sale</span>
-                <span className="text-sm font-medium text-gray-900">
-                  ₹{stats?.soldBikes && stats?.totalProfit
-                    ? (stats.totalProfit / stats.soldBikes).toFixed(0)
-                    : '0'
-                  }
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Profit Margin</span>
-                <span className="text-sm font-medium text-green-600">
-                  {stats?.totalRevenue && stats?.totalProfit
-                    ? `${((stats.totalProfit / stats.totalRevenue) * 100).toFixed(1)}%`
-                    : '0%'
-                  }
-                </span>
+      {/* All Announcements Modal */}
+      {showAllAnnouncements && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowAllAnnouncements(false)} />
+            
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    All Announcements
+                  </h3>
+                  <button
+                    onClick={() => setShowAllAnnouncements(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                
+                <div className="max-h-96 overflow-y-auto space-y-3">
+                  {allAnnouncements.map((announcement: any) => (
+                    <div key={announcement.id} className="border border-gray-200 rounded-lg p-4">
+                      {announcement.title && (
+                        <div className="text-sm font-medium text-gray-900 mb-2">{announcement.title}</div>
+                      )}
+                      <p className="text-sm text-gray-700 mb-2">{announcement.message}</p>
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-gray-500">
+                          {new Date(announcement.createdAt).toLocaleString()}
+                        </p>
+                        {!dismissedAnnouncements.includes(announcement.id) && (
+                          <button
+                            onClick={() => {
+                              dismissAnnouncement(announcement.id)
+                              // Update the modal view
+                              setAllAnnouncements(prev => prev.map(a => 
+                                a.id === announcement.id ? { ...a, dismissed: true } : a
+                              ))
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            Mark as Read
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {allAnnouncements.length === 0 && (
+                    <div className="text-center text-gray-500 py-8">
+                      No announcements available
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -439,7 +439,11 @@ class FirestoreService {
     
     const announcement: Announcement = {
       id,
+      readBy: [],
       ...data,
+      // Set defaults only if not provided
+      status: data.status || 'sent',
+      priority: data.priority || 'medium',
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -554,6 +558,117 @@ class FirestoreService {
         usersByRole,
       },
     };
+  }
+
+  // Enhanced announcement functions
+  async findAnnouncementsWithOptions(target?: string, options?: { 
+    limit?: number; 
+    status?: string[]; 
+    orderBy?: 'createdAt' | 'sendAt';
+    orderDirection?: 'asc' | 'desc';
+    startAfter?: any;
+  }): Promise<Announcement[]> {
+    const {
+      limit = 50,
+      status = ['sent'],
+      orderBy = 'createdAt',
+      orderDirection = 'desc'
+    } = options || {};
+
+    try {
+      if (target) {
+        // For targeted queries, get both specific company and global announcements
+        const query1 = firestore.collection(COLLECTIONS.ANNOUNCEMENTS)
+          .where('target', '==', target)
+          .where('status', 'in', status)
+          .orderBy(orderBy, orderDirection)
+          .limit(Math.floor(limit / 2));
+
+        const query2 = firestore.collection(COLLECTIONS.ANNOUNCEMENTS)
+          .where('global', '==', true)
+          .where('status', 'in', status)
+          .orderBy(orderBy, orderDirection)
+          .limit(Math.floor(limit / 2));
+
+        try {
+          const [snapshot1, snapshot2] = await Promise.all([query1.get(), query2.get()]);
+          const announcements = [...snapshot1.docs, ...snapshot2.docs].map(doc => doc.data() as Announcement);
+          
+          return announcements.sort((a, b) => {
+            const aTime = new Date(a[orderBy] || a.createdAt).getTime();
+            const bTime = new Date(b[orderBy] || b.createdAt).getTime();
+            return orderDirection === 'desc' ? bTime - aTime : aTime - bTime;
+          }).slice(0, limit);
+        } catch (indexError) {
+          // Fallback for index issues
+          console.warn('Index error, using basic query:', indexError);
+          return this.findAnnouncements(target);
+        }
+      } else {
+        // Get all announcements (for admin)
+        try {
+          const query = firestore.collection(COLLECTIONS.ANNOUNCEMENTS)
+            .where('status', 'in', status)
+            .orderBy(orderBy, orderDirection)
+            .limit(limit);
+
+          const snapshot = await query.get();
+          return snapshot.docs.map(doc => doc.data() as Announcement);
+        } catch (indexError) {
+          console.warn('Index error, using basic query:', indexError);
+          return this.findAnnouncements();
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching announcements with options:', error);
+      // Fallback to basic query
+      return this.findAnnouncements(target);
+    }
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    try {
+      await firestore.collection(COLLECTIONS.ANNOUNCEMENTS).doc(id).delete();
+      return true;
+    } catch (error) {
+      console.error('Error deleting announcement:', error);
+      throw error;
+    }
+  }
+
+  async updateAnnouncementStatus(id: string, status: string): Promise<boolean> {
+    try {
+      await firestore.collection(COLLECTIONS.ANNOUNCEMENTS).doc(id).update({
+        status,
+        updatedAt: this.getTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating announcement status:', error);
+      throw error;
+    }
+  }
+
+  async markAnnouncementAsRead(announcementId: string, userId: string): Promise<boolean> {
+    try {
+      const doc = await firestore.collection(COLLECTIONS.ANNOUNCEMENTS).doc(announcementId).get();
+      if (!doc.exists) return false;
+      
+      const announcement = doc.data() as Announcement;
+      const readBy = announcement.readBy || [];
+      
+      if (!readBy.includes(userId)) {
+        await firestore.collection(COLLECTIONS.ANNOUNCEMENTS).doc(announcementId).update({
+          readBy: [...readBy, userId],
+          updatedAt: this.getTimestamp()
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error marking announcement as read:', error);
+      throw error;
+    }
   }
 }
 

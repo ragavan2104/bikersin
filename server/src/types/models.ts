@@ -54,7 +54,14 @@ export interface Customer extends BaseDocument {
 // Announcement model
 export interface Announcement extends BaseDocument {
   message: string;
-  target?: string; // Company ID or null for global
+  target?: string | string[]; // Company ID(s) or null for global
+  status: 'draft' | 'scheduled' | 'sent';
+  sendAt?: string; // ISO date string for scheduled announcements
+  createdBy: string; // User ID of creator
+  priority: 'low' | 'medium' | 'high';
+  title?: string; // Optional title for announcement
+  readBy?: string[]; // Array of user IDs who have read this
+  global?: boolean; // Explicit global flag
 }
 
 // Extended types for API responses

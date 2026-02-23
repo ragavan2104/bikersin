@@ -116,7 +116,7 @@ export const getPlatformHealth = async (req: AuthRequest, res: Response) => {
 
 export const createBroadcast = async (req: AuthRequest, res: Response) => {
     try {
-        const { message, target } = req.body;
+        const { message, target, title, priority = 'medium', status = 'sent', sendAt } = req.body;
         
         if (!message || message.trim().length === 0) {
             return res.status(400).json({ error: 'Message is required' });
@@ -126,28 +126,54 @@ export const createBroadcast = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ error: 'Message too long (max 1000 characters)' });
         }
         
-        // If target is specified, verify company exists
-        if (target) {
-            const company = await db.findCompanyById(target);
-            if (!company) {
-                return res.status(404).json({ error: 'Target company not found' });
+        // Handle target validation
+        let processedTarget = target;
+        let isGlobal = !target || target === 'global';
+        
+        if (target && target !== 'global') {
+            // If target is an array, validate all companies exist
+            const targetArray = Array.isArray(target) ? target : [target];
+            for (const companyId of targetArray) {
+                const company = await db.findCompanyById(companyId);
+                if (!company) {
+                    return res.status(404).json({ error: `Target company ${companyId} not found` });
+                }
+            }
+            processedTarget = targetArray;
+        }
+        
+        // Validate sendAt if scheduling
+        if (sendAt && status === 'scheduled') {
+            const sendDate = new Date(sendAt);
+            if (sendDate <= new Date()) {
+                return res.status(400).json({ error: 'Scheduled send time must be in the future' });
             }
         }
         
         const announcement = await db.createAnnouncement({
-            message: message.trim(), 
-            target
+            message: message.trim(),
+            target: processedTarget,
+            title: title?.trim(),
+            status: status as 'draft' | 'scheduled' | 'sent',
+            sendAt: sendAt ? new Date(sendAt).toISOString() : undefined,
+            createdBy: req.user!.userId,
+            priority: priority as 'low' | 'medium' | 'high',
+            global: isGlobal,
+            readBy: []
         });
         
         // Log admin action
         await logAdminAction(req.user!.userId, 'CREATE_BROADCAST', { 
             announcementId: announcement.id,
-            target: target || 'global',
-            messageLength: message.length
+            target: processedTarget || 'global',
+            messageLength: message.length,
+            status,
+            priority
         });
         
         res.json(announcement);
     } catch (error) {
+        console.error('Create broadcast error:', error);
         res.status(500).json({ error: 'Failed to create broadcast' });
     }
 };
@@ -372,36 +398,82 @@ export const exportCustomers = async (req: AuthRequest, res: Response) => {
 // Broadcast management endpoints
 export const getBroadcasts = async (req: AuthRequest, res: Response) => {
     try {
-        // Since we don't have a broadcast table, return mock data
-        const broadcasts = [
-            {
-                id: '1',
-                title: 'System Maintenance',
-                message: 'Scheduled maintenance on Sunday 2AM',
-                type: 'announcement',
-                targetType: 'all',
-                priority: 'medium',
-                status: 'sent',
-                createdAt: new Date().toISOString(),
-                recipientCount: 150,
-                readCount: 120
-            }
-        ];
-        res.json(broadcasts);
+        const { 
+            target, 
+            limit = 50, 
+            status = 'sent,scheduled,draft', 
+            orderBy = 'createdAt', 
+            orderDirection = 'desc' 
+        } = req.query;
+        
+        const statusArray = (status as string).split(',').filter(s => s.trim());
+        const options = {
+            limit: parseInt(limit as string, 10),
+            status: statusArray,
+            orderBy: orderBy as 'createdAt' | 'sendAt',
+            orderDirection: orderDirection as 'asc' | 'desc'
+        };
+        
+        const announcements = await db.findAnnouncementsWithOptions(target as string, options);
+        
+        // Add computed fields for frontend
+        const enrichedAnnouncements = announcements.map(announcement => {
+            const readCount = announcement.readBy?.length || 0;
+            const recipientCount = announcement.global 
+                ? 'All companies' 
+                : Array.isArray(announcement.target) 
+                    ? announcement.target.length 
+                    : 1;
+            
+            return {
+                ...announcement,
+                readCount,
+                recipientCount,
+                readRate: typeof recipientCount === 'number' && recipientCount > 0 
+                    ? Math.round((readCount / recipientCount) * 100) 
+                    : 0
+            };
+        });
+        
+        res.json(enrichedAnnouncements);
     } catch (error) {
+        console.error('Get broadcasts error:', error);
         res.status(500).json({ error: 'Failed to fetch broadcasts' });
     }
 };
 
 export const getBroadcastStats = async (req: AuthRequest, res: Response) => {
     try {
+        const allAnnouncements = await db.findAnnouncementsWithOptions(undefined, {
+            limit: 1000,
+            status: ['sent', 'scheduled', 'draft']
+        });
+        
+        const totalSent = allAnnouncements.filter(a => a.status === 'sent').length;
+        const totalScheduled = allAnnouncements.filter(a => a.status === 'scheduled').length;
+        const totalDrafts = allAnnouncements.filter(a => a.status === 'draft').length;
+        
+        const sentAnnouncements = allAnnouncements.filter(a => a.status === 'sent');
+        const totalRecipients = sentAnnouncements.reduce((sum, a) => {
+            if (a.global) return sum + 100; // Estimate for global
+            if (Array.isArray(a.target)) return sum + a.target.length;
+            return sum + 1;
+        }, 0);
+        
+        const totalReads = sentAnnouncements.reduce((sum, a) => sum + (a.readBy?.length || 0), 0);
+        const averageReadRate = totalRecipients > 0 ? Math.round((totalReads / totalRecipients) * 100) : 0;
+        
         res.json({
-            totalSent: 1,
-            totalRecipients: 150,
-            averageReadRate: 80.0,
-            pendingBroadcasts: 0
+            totalSent,
+            totalScheduled,
+            totalDrafts,
+            totalRecipients,
+            totalReads,
+            averageReadRate,
+            pendingBroadcasts: totalScheduled
         });
     } catch (error) {
+        console.error('Get broadcast stats error:', error);
         res.status(500).json({ error: 'Failed to fetch broadcast stats' });
     }
 };
@@ -409,9 +481,22 @@ export const getBroadcastStats = async (req: AuthRequest, res: Response) => {
 export const sendBroadcast = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        // Implementation would send the broadcast
-        res.json({ message: 'Broadcast sent successfully' });
+        
+        // Update announcement status to sent
+        const success = await db.updateAnnouncementStatus(id, 'sent');
+        
+        if (success) {
+            // Log admin action
+            await logAdminAction(req.user!.userId, 'SEND_BROADCAST', { 
+                announcementId: id
+            });
+            
+            res.json({ message: 'Broadcast sent successfully', id });
+        } else {
+            res.status(404).json({ error: 'Broadcast not found' });
+        }
     } catch (error) {
+        console.error('Send broadcast error:', error);
         res.status(500).json({ error: 'Failed to send broadcast' });
     }
 };
@@ -419,10 +504,44 @@ export const sendBroadcast = async (req: AuthRequest, res: Response) => {
 export const deleteBroadcast = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        // Implementation would delete the broadcast
-        res.json({ message: 'Broadcast deleted successfully' });
+        
+        const success = await db.deleteAnnouncement(id);
+        
+        if (success) {
+            // Log admin action
+            await logAdminAction(req.user!.userId, 'DELETE_BROADCAST', { 
+                announcementId: id
+            });
+            
+            res.json({ message: 'Broadcast deleted successfully', id });
+        } else {
+            res.status(404).json({ error: 'Broadcast not found' });
+        }
     } catch (error) {
+        console.error('Delete broadcast error:', error);
         res.status(500).json({ error: 'Failed to delete broadcast' });
+    }
+};
+
+// Mark announcement as read (for tenant users)
+export const markAnnouncementRead = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        
+        if (!req.user?.userId) {
+            return res.status(401).json({ error: 'User ID required' });
+        }
+        
+        const success = await db.markAnnouncementAsRead(id, req.user.userId);
+        
+        if (success) {
+            res.json({ message: 'Announcement marked as read', id });
+        } else {
+            res.status(404).json({ error: 'Announcement not found' });
+        }
+    } catch (error) {
+        console.error('Mark announcement read error:', error);
+        res.status(500).json({ error: 'Failed to mark announcement as read' });
     }
 };
 

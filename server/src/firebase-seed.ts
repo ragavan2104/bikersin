@@ -224,28 +224,49 @@ async function seed() {
     
     // Global announcement (no target)
     await firestoreService.createAnnouncement({
-      message: 'System maintenance scheduled for this weekend from 2 AM to 6 AM. All services will be temporarily unavailable.'
+      message: 'System maintenance scheduled for this weekend from 2 AM to 6 AM. All services will be temporarily unavailable.',
+      status: 'sent',
+      createdBy: 'system',
+      priority: 'high',
+      global: true
     });
 
     // Company-specific announcements
     await firestoreService.createAnnouncement({
       message: 'New inventory management features are now available! Check out the updated dashboard.',
-      target: company1.id
+      target: company1.id,
+      status: 'sent',
+      createdBy: 'system',
+      priority: 'medium',
+      title: 'New Features Available'
     });
 
     await firestoreService.createAnnouncement({
       message: 'Welcome to our premium bike management platform! Contact support for any assistance.',
-      target: company2.id
+      target: company2.id,
+      status: 'sent',
+      createdBy: 'system',
+      priority: 'low',
+      title: 'Welcome Message'
     });
 
     await firestoreService.createAnnouncement({
       message: 'Your account has been temporarily suspended. Please contact the system administrator.',
-      target: company3.id
+      target: company3.id,
+      status: 'sent',
+      createdBy: 'system',
+      priority: 'high',
+      title: 'Account Status Update'
     });
 
     // Additional global announcement
     await firestoreService.createAnnouncement({
-      message: 'New security updates have been applied. Please log out and log back in for the changes to take effect.'
+      message: 'New security updates have been applied. Please log out and log back in for the changes to take effect.',
+      status: 'sent',
+      createdBy: 'system',
+      priority: 'medium',
+      global: true,
+      title: 'Security Update'
     });
 
     console.log('✅ Firebase seed data created successfully!');
