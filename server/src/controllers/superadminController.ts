@@ -107,10 +107,20 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 
 export const getPlatformHealth = async (req: AuthRequest, res: Response) => {
     try {
+        console.log('Health check requested by user:', req.user?.userId);
         const stats = await getSystemStats();
-        res.json(stats);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch platform health' });
+        res.json({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            ...stats
+        });
+    } catch (error: any) {
+        console.error('Platform health check failed:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch platform health',
+            message: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 };
 
@@ -398,6 +408,8 @@ export const exportCustomers = async (req: AuthRequest, res: Response) => {
 // Broadcast management endpoints
 export const getBroadcasts = async (req: AuthRequest, res: Response) => {
     try {
+        console.log('Get broadcasts requested by user:', req.user?.userId, 'with query:', req.query);
+        
         const { 
             target, 
             limit = 50, 
@@ -406,9 +418,28 @@ export const getBroadcasts = async (req: AuthRequest, res: Response) => {
             orderDirection = 'desc' 
         } = req.query;
         
+        // Validate query parameters
+        const limitNum = parseInt(limit as string, 10);
+        if (isNaN(limitNum) || limitNum < 1 || limitNum > 1000) {
+            return res.status(400).json({ 
+                error: 'Invalid limit parameter', 
+                message: 'Limit must be a number between 1 and 1000' 
+            });
+        }
+        
         const statusArray = (status as string).split(',').filter(s => s.trim());
+        const validStatuses = ['sent', 'scheduled', 'draft'];
+        const invalidStatuses = statusArray.filter(s => !validStatuses.includes(s));
+        
+        if (invalidStatuses.length > 0) {
+            return res.status(400).json({ 
+                error: 'Invalid status parameter', 
+                message: `Invalid statuses: ${invalidStatuses.join(', ')}. Valid statuses: ${validStatuses.join(', ')}` 
+            });
+        }
+        
         const options = {
-            limit: parseInt(limit as string, 10),
+            limit: limitNum,
             status: statusArray,
             orderBy: orderBy as 'createdAt' | 'sendAt',
             orderDirection: orderDirection as 'asc' | 'desc'
@@ -435,10 +466,18 @@ export const getBroadcasts = async (req: AuthRequest, res: Response) => {
             };
         });
         
-        res.json(enrichedAnnouncements);
-    } catch (error) {
+        res.json({
+            broadcasts: enrichedAnnouncements,
+            total: enrichedAnnouncements.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error: any) {
         console.error('Get broadcasts error:', error);
-        res.status(500).json({ error: 'Failed to fetch broadcasts' });
+        res.status(500).json({ 
+            error: 'Failed to fetch broadcasts',
+            message: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 };
 

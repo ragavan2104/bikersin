@@ -13,22 +13,57 @@ export interface AuthRequest extends Request {
 
 export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Access denied' });
+  if (!token) {
+    return res.status(401).json({ 
+      error: 'Access denied', 
+      message: 'No authorization token provided' 
+    });
+  }
 
   try {
     const verified = jwt.verify(token, JWT_SECRET) as any;
     req.user = verified;
     next();
-  } catch (err) {
-    res.status(400).json({ error: 'Invalid token' });
+  } catch (err: any) {
+    console.error('JWT verification failed:', err.message);
+    
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        error: 'Token expired', 
+        message: 'Your session has expired. Please login again.' 
+      });
+    }
+    
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        error: 'Invalid token', 
+        message: 'The provided token is invalid.' 
+      });
+    }
+    
+    return res.status(401).json({ 
+      error: 'Authentication failed', 
+      message: 'Token verification failed.' 
+    });
   }
 };
 
 export const authorizeRole = (allowedRoles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden' });
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required', 
+        message: 'User not authenticated' 
+      });
     }
+    
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        error: 'Forbidden', 
+        message: `Access denied. Required roles: ${allowedRoles.join(', ')}` 
+      });
+    }
+    
     next();
   };
 };
