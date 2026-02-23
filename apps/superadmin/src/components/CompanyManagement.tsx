@@ -8,6 +8,7 @@ interface Company {
   name: string;
   logo?: string;
   isActive: boolean;
+  validityDate?: string;
   createdAt: string;
 }
 
@@ -17,11 +18,17 @@ export default function CompanyManagement() {
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
+  const [showExtendValidityModal, setShowExtendValidityModal] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [newValidityDate, setNewValidityDate] = useState('');
+  const [expiredCompanies, setExpiredCompanies] = useState<Company[]>([]);
+  const [expiringSoon, setExpiringSoon] = useState<Company[]>([]);
 
   // Create company form
   const [newCompany, setNewCompany] = useState({
     name: '',
-    logo: ''
+    logo: '',
+    validityDate: ''
   });
 
   // Create user form
@@ -34,7 +41,8 @@ export default function CompanyManagement() {
 
   useEffect(() => {
     fetchCompanies();
-  }, []);
+    fetchExpiredCompanies();
+  }, []);;
 
   const fetchCompanies = async () => {
     try {
@@ -56,6 +64,87 @@ export default function CompanyManagement() {
     }
   };
 
+  const fetchExpiredCompanies = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/superadmin/companies/expired`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setExpiredCompanies(data.expired || []);
+        setExpiringSoon(data.expiringSoon || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch expired companies:', error);
+    }
+  };
+
+  const openExtendValidityModal = (company: Company) => {
+    setSelectedCompany(company);
+    setNewValidityDate('');
+    setShowExtendValidityModal(true);
+  };
+
+  const extendCompanyValidity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCompany || !newValidityDate) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/api/superadmin/companies/${selectedCompany.id}/validity`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ validityDate: newValidityDate })
+      });
+
+      if (res.ok) {
+        setShowExtendValidityModal(false);
+        setSelectedCompany(null);
+        setNewValidityDate('');
+        fetchCompanies();
+        fetchExpiredCompanies();
+        alert('Company validity extended successfully!');
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to extend validity');
+      }
+    } catch (error) {
+      alert('Error extending company validity');
+    }
+  };
+
+  const processExpiredCompanies = async () => {
+    if (!confirm('This will automatically suspend all expired companies. Continue?')) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_URL}/api/superadmin/companies/process-expired`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`${data.message}\n- Suspended: ${data.suspendedCount} companies\n- Expiring soon: ${data.expiringSoonCount} companies`);
+        fetchCompanies();
+        fetchExpiredCompanies();
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to process expired companies');
+      }
+    } catch (error) {
+      alert('Error processing expired companies');
+    }
+  };
+
   const createCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -69,7 +158,7 @@ export default function CompanyManagement() {
       });
 
       if (res.ok) {
-        setNewCompany({ name: '', logo: '' });
+        setNewCompany({ name: '', logo: '', validityDate: '' });
         setShowCreateForm(false);
         fetchCompanies();
       } else {
@@ -181,6 +270,51 @@ export default function CompanyManagement() {
         </div>
       </div>
 
+      {/* Expired Companies Alert */}
+      {(expiredCompanies.length > 0 || expiringSoon.length > 0) && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-red-800 mb-2">⚠️ Validity Alerts</h3>
+              {expiredCompanies.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-red-700 font-medium">
+                    {expiredCompanies.length} companies have expired:
+                  </p>
+                  <ul className="text-sm text-red-600 ml-4">
+                    {expiredCompanies.map(company => (
+                      <li key={company.id}>
+                        • {company.name} (Expired: {new Date(company.validityDate!).toLocaleDateString()})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {expiringSoon.length > 0 && (
+                <div>
+                  <p className="text-amber-700 font-medium">
+                    {expiringSoon.length} companies expiring within 7 days:
+                  </p>
+                  <ul className="text-sm text-amber-600 ml-4">
+                    {expiringSoon.map(company => (
+                      <li key={company.id}>
+                        • {company.name} (Expires: {new Date(company.validityDate!).toLocaleDateString()})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={processExpiredCompanies}
+              className="ml-4 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium"
+            >
+              Process Expired
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Create Company Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
@@ -205,6 +339,18 @@ export default function CompanyManagement() {
                   onChange={(e) => setNewCompany({ ...newCompany, logo: e.target.value })}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Validity Date *</label>
+                <input
+                  type="date"
+                  value={newCompany.validityDate}
+                  onChange={(e) => setNewCompany({ ...newCompany, validityDate: e.target.value })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Company access will expire on this date</p>
               </div>
               <div className="flex justify-end space-x-3">
                 <button
@@ -307,6 +453,24 @@ export default function CompanyManagement() {
                         {company.isActive ? 'Active' : 'Suspended'}
                       </span>
                     </p>
+                    {company.validityDate && (
+                      <p className="text-sm">
+                        <span className="text-gray-500">Valid until: </span>
+                        <span className={`${
+                          new Date(company.validityDate) < new Date() 
+                            ? 'text-red-600 font-medium' 
+                            : new Date(company.validityDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                              ? 'text-amber-600 font-medium'
+                              : 'text-green-600'
+                        }`}>
+                          {new Date(company.validityDate).toLocaleDateString()}
+                          {new Date(company.validityDate) < new Date() && ' (EXPIRED)'}
+                          {new Date(company.validityDate) >= new Date() && 
+                           new Date(company.validityDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && 
+                           ' (Expires Soon)'}
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex space-x-2">
@@ -320,6 +484,14 @@ export default function CompanyManagement() {
                   >
                     {company.isActive ? 'Suspend' : 'Activate'}
                   </button>
+                  {company.validityDate && (
+                    <button
+                      onClick={() => openExtendValidityModal(company)}
+                      className="px-3 py-1 bg-blue-100 text-blue-800 rounded-md text-sm font-medium hover:bg-blue-200"
+                    >
+                      Extend Validity
+                    </button>
+                  )}
                   <button
                     onClick={() => impersonateCompany(company.id)}
                     className="px-3 py-1 bg-purple-100 text-purple-800 rounded-md text-sm font-medium hover:bg-purple-200"
@@ -332,6 +504,52 @@ export default function CompanyManagement() {
           ))}
         </ul>
       </div>
+
+      {/* Extend Validity Modal */}
+      {showExtendValidityModal && selectedCompany && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-medium mb-4">Extend Company Validity</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Extending validity for: <strong>{selectedCompany.name}</strong>
+            </p>
+            {selectedCompany.validityDate && (
+              <p className="text-sm text-gray-600 mb-4">
+                Current validity: <span className="font-medium">{new Date(selectedCompany.validityDate).toLocaleDateString()}</span>
+              </p>
+            )}
+            <form onSubmit={extendCompanyValidity}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">New Validity Date *</label>
+                <input
+                  type="date"
+                  value={newValidityDate}
+                  onChange={(e) => setNewValidityDate(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Must be a future date</p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowExtendValidityModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Extend Validity
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

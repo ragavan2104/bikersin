@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { verifyToken, authorizeRole, tenantGuard } from '../middleware/auth';
+import { checkCompanyValidity } from '../middleware/companyValidity';
 import {
   validateRequest,
   bikeValidationRules,
@@ -57,7 +58,7 @@ router.patch('/announcements/test/:id', (req, res) => {
 });
 
 // Apply middleware to all tenant routes (except debug routes above)
-router.use(verifyToken, authorizeRole(['ADMIN', 'WORKER', 'SUPERADMIN']), tenantGuard);
+router.use(verifyToken, authorizeRole(['ADMIN', 'WORKER', 'SUPERADMIN']), tenantGuard, checkCompanyValidity);
 
 // Dashboard
 router.get('/dashboard', getDashboardData);

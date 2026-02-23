@@ -10,6 +10,7 @@ export interface Company extends BaseDocument {
   name: string;
   logo?: string;
   isActive: boolean;
+  validityDate?: string; // ISO string format for company validity expiration
   featureFlags?: Record<string, any>;
 }
 

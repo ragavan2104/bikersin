@@ -4,15 +4,16 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../middleware/auth';
 import { getSystemStats, validateCompanyData, validateUserData, logAdminAction } from '../utils/adminHelpers';
+import { suspendExpiredCompanies, getCompaniesExpiringSoon } from '../middleware/companyValidity';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 export const createCompany = async (req: AuthRequest, res: Response) => {
     try {
-        const { name, logo } = req.body;
+        const { name, logo, validityDate } = req.body;
         
         // Validate input
-        const validationErrors = validateCompanyData({ name, logo });
+        const validationErrors = validateCompanyData({ name, logo, validityDate });
         if (validationErrors.length > 0) {
             return res.status(400).json({ error: validationErrors.join(', ') });
         }
@@ -20,11 +21,16 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
         const company = await db.createCompany({
             name: name.trim(),
             logo,
+            validityDate: validityDate ? new Date(validityDate).toISOString() : undefined,
             isActive: true
         });
         
         // Log admin action
-        await logAdminAction(req.user!.userId, 'CREATE_COMPANY', { companyId: company.id, name });
+        await logAdminAction(req.user!.userId, 'CREATE_COMPANY', { 
+            companyId: company.id, 
+            name,
+            validityDate: validityDate || 'No expiry'
+        });
         
         res.json(company);
     } catch (error) {
@@ -294,6 +300,104 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
         res.json(response);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch company stats' });
+    }
+};
+
+export const extendCompanyValidity = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { validityDate } = req.body;
+        
+        if (!validityDate) {
+            return res.status(400).json({ error: 'Validity date is required' });
+        }
+        
+        const newValidityDate = new Date(validityDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (isNaN(newValidityDate.getTime()) || newValidityDate < today) {
+            return res.status(400).json({ error: 'Invalid validity date. Must be in the future.' });
+        }
+        
+        const company = await db.findCompanyById(id);
+        if (!company) {
+            return res.status(404).json({ error: 'Company not found' });
+        }
+
+        const updated = await db.updateCompany(id, { 
+            validityDate: newValidityDate.toISOString() 
+        });
+        
+        if (!updated) {
+            return res.status(404).json({ error: 'Failed to update company validity' });
+        }
+        
+        // Log admin action
+        await logAdminAction(req.user!.userId, 'EXTEND_COMPANY_VALIDITY', { 
+            companyId: id, 
+            companyName: company.name,
+            newValidityDate: newValidityDate.toISOString()
+        });
+        
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to extend company validity' });
+    }
+};
+
+export const getExpiredCompanies = async (req: AuthRequest, res: Response) => {
+    try {
+        const companies = await db.findAllCompanies();
+        const today = new Date();
+        today.setHours(23, 59, 59, 999); // End of today
+        
+        const expiredCompanies = companies.filter(company => 
+            company.validityDate && new Date(company.validityDate) < today
+        );
+        
+        const expiringSoon = companies.filter(company => {
+            if (!company.validityDate) return false;
+            const validityDate = new Date(company.validityDate);
+            const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            return validityDate >= today && validityDate <= sevenDaysFromNow;
+        });
+        
+        res.json({
+            expired: expiredCompanies,
+            expiringSoon: expiringSoon,
+            totalExpired: expiredCompanies.length,
+            totalExpiringSoon: expiringSoon.length
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch expired companies' });
+    }
+};
+
+export const processExpiredCompanies = async (req: AuthRequest, res: Response) => {
+    try {
+        const result = await suspendExpiredCompanies();
+        
+        // Also get updated stats
+        const companies = await db.findAllCompanies();
+        const today = new Date();
+        const expiringSoonList = await getCompaniesExpiringSoon(7);
+        
+        // Log admin action
+        await logAdminAction(req.user!.userId, 'PROCESS_EXPIRED_COMPANIES', { 
+            suspendedCount: result.suspendedCount,
+            expiringSoonCount: expiringSoonList.length
+        });
+        
+        res.json({
+            message: `Processed company expiries successfully`,
+            suspendedCount: result.suspendedCount,
+            expiringSoonCount: expiringSoonList.length,
+            expiringSoon: expiringSoonList
+        });
+    } catch (error) {
+        console.error('Failed to process expired companies:', error);
+        res.status(500).json({ error: 'Failed to process expired companies' });
     }
 };
 

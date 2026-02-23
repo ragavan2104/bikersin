@@ -12,6 +12,9 @@ import {
     getAllAnnouncements,
     deleteCompany,
     getCompanyStats,
+    extendCompanyValidity,
+    getExpiredCompanies,
+    processExpiredCompanies,
     getAnalyticsStats,
     getCompanyRankings,
     getSalesTrends,
@@ -37,6 +40,9 @@ router.use(verifyToken, authorizeRole(['SUPERADMIN']));
 router.get('/companies', getAllCompanies);
 router.post('/companies', createCompany);
 router.post('/companies/:id/suspend', suspendCompany);
+router.put('/companies/:id/validity', extendCompanyValidity);
+router.get('/companies/expired', getExpiredCompanies);
+router.post('/companies/process-expired', processExpiredCompanies);
 router.delete('/companies/:id', deleteCompany);
 router.get('/companies/:id/stats', getCompanyStats);
 router.get('/companies/stats', getCompanyStats);

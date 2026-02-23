@@ -24,6 +24,20 @@ export const validateCompanyData = (data: any) => {
         errors.push('Logo must be a valid URL');
     }
 
+    if (!data.validityDate) {
+        errors.push('Validity date is required');
+    } else {
+        const validityDate = new Date(data.validityDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset time for date comparison
+        
+        if (isNaN(validityDate.getTime())) {
+            errors.push('Invalid validity date format');
+        } else if (validityDate < today) {
+            errors.push('Validity date must be in the future');
+        }
+    }
+
     return errors;
 };
 
