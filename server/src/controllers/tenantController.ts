@@ -17,7 +17,7 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
       db.findBikesByCompany(companyId, true),
       db.findAnnouncements(companyId)
     ]);
-    
+
     // Calculate metrics from the data
     const totalBikes = bikes.length;
     const soldBikes = bikes.filter(bike => bike.isSold).length;
@@ -29,7 +29,7 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
       .filter(bike => bike.isSold && bike.boughtPrice)
       .reduce((sum, bike) => sum + (bike.boughtPrice || 0), 0);
     const totalProfit = totalRevenue - totalCost;
-    
+
     const recentSales = bikes
       .filter(bike => bike.isSold)
       .sort((a, b) => {
@@ -70,16 +70,16 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
       companyId: req.user?.companyId,
       userId: req.user?.userId
     });
-    
+
     // More specific error message for Firestore index issues
     if ((error as any).code === 'failed-precondition' || err.message?.includes('index')) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Database index required. Please check Vercel function logs.',
         code: 'INDEX_REQUIRED'
       });
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: 'Failed to fetch dashboard data',
       details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
@@ -325,7 +325,7 @@ export const deleteBike = async (req: AuthRequest, res: Response) => {
     }
 
     const success = await db.deleteBike(id);
-    
+
     if (!success) {
       return res.status(500).json({ error: 'Failed to delete bike' });
     }
@@ -406,6 +406,7 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
     const updatedBike = await db.updateBike(id, {
       isSold: true,
       soldPrice: parseFloat(soldPrice),
+      soldAt: new Date().toISOString(),
       customerId: customer.id
     });
 
@@ -501,7 +502,7 @@ export const getSalesData = async (req: AuthRequest, res: Response) => {
 
     const allBikes = await db.findBikesByCompany(companyId, true);
     const sales = allBikes.filter(bike => bike.isSold);
-    
+
     // Sort by updatedAt descending
     sales.sort((a, b) => {
       const aTime = (a.updatedAt as any) instanceof Date ? (a.updatedAt as unknown as Date).getTime() : new Date(a.updatedAt as unknown as string).getTime();
@@ -549,7 +550,7 @@ export const getCompanyUsers = async (req: AuthRequest, res: Response) => {
 
     const users = await db.findUsersByCompany(companyId);
     const bikes = await db.findBikesByCompany(companyId);
-    
+
     // Calculate bike count for each user
     const sanitizedUsers = users
       .map((user: any) => {
@@ -673,7 +674,7 @@ export const getProfitReport = async (req: AuthRequest, res: Response) => {
 
     const bikes = await db.findBikesByCompany(companyId);
     const soldBikes = bikes.filter(bike => bike.isSold);
-    
+
     const profit = soldBikes.reduce((acc, bike) => {
       return acc + ((bike.soldPrice || 0) - bike.boughtPrice);
     }, 0);
@@ -681,5 +682,54 @@ export const getProfitReport = async (req: AuthRequest, res: Response) => {
     res.json({ totalProfit: profit, count: soldBikes.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate profit report' });
+  }
+}
+
+// Analytics Graph Data
+export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) return res.status(400).json({ error: 'Company ID required' });
+
+    const bikes = await db.findBikesByCompany(companyId);
+
+    const salesGroups: Record<string, any> = {};
+    const inventoryGroups: Record<string, any> = {};
+
+    bikes.forEach(b => {
+      // Inventory tracking (by createdAt)
+      if (b.createdAt) {
+        const cDate = new Date(b.createdAt);
+        const cKey = cDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (!inventoryGroups[cKey]) {
+          inventoryGroups[cKey] = { name: cKey, dateValue: cDate.getTime(), Count: 0, 'Bought Price': 0 };
+        }
+        inventoryGroups[cKey].Count += 1;
+        inventoryGroups[cKey]['Bought Price'] += (b.boughtPrice || 0);
+      }
+
+      // Sales tracking (by soldAt or updatedAt)
+      if (b.isSold && b.soldPrice) {
+        const sDate = new Date(b.soldAt || b.updatedAt);
+        if (sDate.toString() !== 'Invalid Date') {
+          const sKey = sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          if (!salesGroups[sKey]) {
+            salesGroups[sKey] = { name: sKey, dateValue: sDate.getTime(), Count: 0, Revenue: 0, Profit: 0, 'Bought Price': 0 };
+          }
+          salesGroups[sKey].Count += 1;
+          salesGroups[sKey].Revenue += b.soldPrice;
+          salesGroups[sKey]['Bought Price'] += (b.boughtPrice || 0);
+          salesGroups[sKey].Profit += (b.soldPrice - (b.boughtPrice || 0));
+        }
+      }
+    });
+
+    const inventoryData = Object.values(inventoryGroups).sort((a: any, b: any) => a.dateValue - b.dateValue);
+    const salesData = Object.values(salesGroups).sort((a: any, b: any) => a.dateValue - b.dateValue);
+
+    res.json({ inventoryData, salesData });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics data' });
   }
 }

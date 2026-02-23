@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import Sales from './pages/Sales'
 import AdminPanel from './pages/AdminPanel'
+import Graphs from './pages/Graphs'
 import Layout from './components/Layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -68,6 +69,18 @@ function App() {
                   <ProtectedRoute>
                     <Layout>
                       <AdminPanel />
+                    </Layout>
+                  </ProtectedRoute>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/graphs"
+              element={
+                <AdminRoute>
+                  <ProtectedRoute>
+                    <Layout>
+                      <Graphs />
                     </Layout>
                   </ProtectedRoute>
                 </AdminRoute>

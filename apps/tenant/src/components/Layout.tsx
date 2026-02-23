@@ -1,15 +1,16 @@
 import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { 
-  Home, 
-  Package, 
-  TrendingUp, 
-  Settings, 
+import {
+  Home,
+  Package,
+  TrendingUp,
+  Settings,
   LogOut,
   Building2,
   User,
   Menu,
-  X
+  X,
+  BarChart2
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -25,7 +26,10 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Sales', href: '/sales', icon: TrendingUp },
-    ...(user?.role === 'ADMIN' ? [{ name: 'Admin Panel', href: '/admin', icon: Settings }] : [])
+    ...(user?.role === 'ADMIN' ? [
+      { name: 'Graphs', href: '/graphs', icon: BarChart2 },
+      { name: 'Admin Panel', href: '/admin', icon: Settings }
+    ] : [])
   ]
 
   return (
@@ -39,9 +43,8 @@ export default function Layout({ children }: LayoutProps) {
       )}
 
       {/* Mobile Sidebar */}
-      <div className={`fixed inset-y-0 left-0 w-64 bg-white shadow-2xl transform ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } transition-transform duration-300 ease-in-out z-50 md:hidden`}>
+      <div className={`fixed inset-y-0 left-0 w-64 bg-white shadow-2xl transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } transition-transform duration-300 ease-in-out z-50 md:hidden`}>
         <div className="flex items-center justify-between h-16 px-4 border-b bg-gray-50">
           <div className="flex items-center">
             {selectedCompany?.logo ? (
@@ -70,7 +73,7 @@ export default function Layout({ children }: LayoutProps) {
             <X className="h-6 w-6" />
           </button>
         </div>
-        
+
         {/* Mobile Navigation */}
         <nav className="mt-5 px-2 space-y-1">
           {navigationItems.map((item) => {
@@ -81,10 +84,9 @@ export default function Layout({ children }: LayoutProps) {
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
-                  `group flex items-center px-2 py-3 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-blue-100 text-blue-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  `group flex items-center px-2 py-3 text-sm font-medium rounded-md transition-colors ${isActive
+                    ? 'bg-blue-100 text-blue-900'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`
                 }
               >
@@ -154,10 +156,9 @@ export default function Layout({ children }: LayoutProps) {
                   key={item.name}
                   to={item.href}
                   className={({ isActive }) =>
-                    `group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-blue-100 text-blue-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    `group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${isActive
+                      ? 'bg-blue-100 text-blue-900'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`
                   }
                 >

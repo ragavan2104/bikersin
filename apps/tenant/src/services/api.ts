@@ -26,6 +26,7 @@ export interface Bike {
   regNo: string
   boughtPrice: number
   soldPrice?: number
+  soldAt?: string
   isSold: boolean
   createdAt: string
   updatedAt: string
@@ -162,7 +163,7 @@ class ApiService {
       // Decode JWT payload to check expiration
       const payload = JSON.parse(atob(token.split('.')[1]))
       const currentTime = Date.now() / 1000
-      
+
       if (payload.exp && payload.exp < currentTime) {
         console.log('Token expired, clearing authentication')
         localStorage.removeItem('token')
@@ -201,6 +202,13 @@ class ApiService {
     return response.data
   }
 
+  async getBikeAnalytics(): Promise<{ inventoryData: any[], salesData: any[] }> {
+    const response = await axios.get(`${API_URL}/api/tenant/bikes/analytics`, {
+      headers: this.safeGetAuthHeaders()
+    })
+    return response.data
+  }
+
   async getBikeDetails(id: string): Promise<BikeDetails> {
     const response = await axios.get(`${API_URL}/api/tenant/bikes/${id}/details`, {
       headers: this.safeGetAuthHeaders()
@@ -229,9 +237,9 @@ class ApiService {
   }
 
   async markBikeAsSold(id: string, soldPrice: number, customerData?: any): Promise<Bike> {
-    const response = await axios.patch(`${API_URL}/api/tenant/bikes/${id}/mark-sold`, { 
-      soldPrice, 
-      customerData 
+    const response = await axios.patch(`${API_URL}/api/tenant/bikes/${id}/mark-sold`, {
+      soldPrice,
+      customerData
     }, {
       headers: this.safeGetAuthHeaders()
     })
@@ -240,7 +248,7 @@ class ApiService {
 
   // PDF Generation
   async generateReceipt(bikeId: string, soldPrice?: number): Promise<Blob> {
-    const response = await axios.post(`${API_URL}/api/tenant/bikes/${bikeId}/receipt`, 
+    const response = await axios.post(`${API_URL}/api/tenant/bikes/${bikeId}/receipt`,
       { soldPrice },
       {
         headers: this.safeGetAuthHeaders(),

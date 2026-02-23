@@ -1,16 +1,16 @@
 import { Router } from 'express';
 import { verifyToken, authorizeRole, tenantGuard } from '../middleware/auth';
 import { maintenanceGuard } from '../middleware/maintenance';
-import { 
-  validateRequest, 
-  bikeValidationRules, 
-  soldBikeValidationRules 
+import {
+  validateRequest,
+  bikeValidationRules,
+  soldBikeValidationRules
 } from '../middleware/validation';
 import { pdfLimiter, userCreationLimiter } from '../middleware/rateLimiter';
 import {
   // Dashboard
   getDashboardData,
-  
+
   // Bike Management
   getBikes,
   getBikeDetails,
@@ -18,19 +18,20 @@ import {
   updateBike,
   deleteBike,
   markBikeAsSold,
-  
+
   // PDF & Reports
   generateReceipt,
   getSalesData,
-  
+
   // Admin Functions
   getCompanyUsers,
   createCompanyUser,
   getCompanyStats,
-  
+
   // Legacy compatibility
   createBike,
-  getProfitReport
+  getProfitReport,
+  getBikeAnalytics
 } from '../controllers/tenantController';
 
 const router = Router();
@@ -43,6 +44,7 @@ router.use(verifyToken, authorizeRole(['ADMIN', 'WORKER', 'SUPERADMIN']), tenant
 router.get('/dashboard', getDashboardData);
 
 // Bike Management
+router.get('/bikes/analytics', getBikeAnalytics);
 router.get('/bikes', getBikes);
 router.get('/bikes/:id/details', getBikeDetails);
 router.post('/bikes', validateRequest(bikeValidationRules), addBike);
