@@ -347,6 +347,51 @@ export const extendCompanyValidity = async (req: AuthRequest, res: Response) => 
     }
 };
 
+export const renewCompanyByYears = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { years } = req.body;
+        
+        if (!years || years <= 0 || years > 10) {
+            return res.status(400).json({ error: 'Years must be between 1 and 10' });
+        }
+        
+        const company = await db.findCompanyById(id);
+        if (!company) {
+            return res.status(404).json({ error: 'Company not found' });
+        }
+        
+        // Calculate new validity date by adding years to current validity date
+        // If no current validity date, use today as starting point
+        const currentDate = company.validityDate ? new Date(company.validityDate) : new Date();
+        const newValidityDate = new Date(currentDate);
+        newValidityDate.setFullYear(newValidityDate.getFullYear() + years);
+        
+        const updated = await db.updateCompany(id, { 
+            validityDate: newValidityDate.toISOString() 
+        });
+        
+        if (!updated) {
+            return res.status(404).json({ error: 'Failed to renew company validity' });
+        }
+        
+        // Log admin action
+        await logAdminAction(req.user!.userId, 'RENEW_COMPANY_VALIDITY', { 
+            companyId: id, 
+            companyName: company.name,
+            yearsAdded: years,
+            newValidityDate: newValidityDate.toISOString()
+        });
+        
+        res.json({
+            ...updated,
+            message: `Company validity renewed by ${years} year(s) until ${newValidityDate.toLocaleDateString()}`
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to renew company validity' });
+    }
+};
+
 export const getExpiredCompanies = async (req: AuthRequest, res: Response) => {
     try {
         const companies = await db.findAllCompanies();

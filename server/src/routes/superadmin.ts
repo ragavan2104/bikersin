@@ -13,6 +13,7 @@ import {
     deleteCompany,
     getCompanyStats,
     extendCompanyValidity,
+    renewCompanyByYears,
     getExpiredCompanies,
     processExpiredCompanies,
     getAnalyticsStats,
@@ -41,6 +42,7 @@ router.get('/companies', getAllCompanies);
 router.post('/companies', createCompany);
 router.post('/companies/:id/suspend', suspendCompany);
 router.put('/companies/:id/validity', extendCompanyValidity);
+router.put('/companies/:id/renew', renewCompanyByYears);
 router.get('/companies/expired', getExpiredCompanies);
 router.post('/companies/process-expired', processExpiredCompanies);
 router.delete('/companies/:id', deleteCompany);

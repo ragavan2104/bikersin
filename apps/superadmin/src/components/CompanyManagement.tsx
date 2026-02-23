@@ -145,6 +145,38 @@ export default function CompanyManagement() {
     }
   };
 
+  const renewCompanyByOneYear = async (company: Company) => {
+    if (!confirm(`Renew ${company.name} validity by 1 year?`)) {
+      return;
+    }
+    
+    try {
+      const currentDate = company.validityDate ? new Date(company.validityDate) : new Date();
+      const newDate = new Date(currentDate);
+      newDate.setFullYear(newDate.getFullYear() + 1);
+      
+      const res = await fetch(`${API_URL}/api/superadmin/companies/${company.id}/renew`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ years: 1 })
+      });
+
+      if (res.ok) {
+        alert(`Company validity renewed until ${newDate.toLocaleDateString()}`);
+        fetchCompanies();
+        fetchExpiredCompanies();
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to renew validity');
+      }
+    } catch (error) {
+      alert('Error renewing company validity');
+    }
+  };
+
   const createCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -212,33 +244,6 @@ export default function CompanyManagement() {
       }
     } catch (error) {
       alert('Error creating user');
-    }
-  };
-
-  const impersonateCompany = async (companyId: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/superadmin/impersonate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ companyId })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        // Copy token to clipboard or show in alert
-        navigator.clipboard.writeText(data.token).then(() => {
-          alert('Impersonation token copied to clipboard! Use this token to access tenant portal as this company.');
-        }).catch(() => {
-          alert(`Impersonation token: ${data.token}`);
-        });
-      } else {
-        alert('Failed to generate impersonation token');
-      }
-    } catch (error) {
-      alert('Error generating impersonation token');
     }
   };
 
@@ -434,75 +439,112 @@ export default function CompanyManagement() {
         </div>
       )}
 
-      {/* Companies Table */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
+      {/* Companies Grid */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div className="divide-y divide-gray-200">
           {companies.map((company) => (
-            <li key={company.id}>
-              <div className="px-4 py-4 flex items-center justify-between">
-                <div className="flex items-center">
+            <div key={company.id} className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-4">
                   {company.logo && (
-                    <img className="h-10 w-10 rounded-full mr-4" src={company.logo} alt={company.name} />
+                    <img className="h-16 w-16 rounded-lg object-cover" src={company.logo} alt={company.name} />
                   )}
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900">{company.name}</h4>
-                    <p className="text-sm text-gray-500">ID: {company.id}</p>
-                    <p className="text-sm text-gray-500">
-                      Status: 
-                      <span className={`ml-1 ${company.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h3 className="text-xl font-semibold text-gray-900">{company.name}</h3>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        company.isActive 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
                         {company.isActive ? 'Active' : 'Suspended'}
                       </span>
-                    </p>
-                    {company.validityDate && (
-                      <p className="text-sm">
-                        <span className="text-gray-500">Valid until: </span>
-                        <span className={`${
-                          new Date(company.validityDate) < new Date() 
-                            ? 'text-red-600 font-medium' 
-                            : new Date(company.validityDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-                              ? 'text-amber-600 font-medium'
-                              : 'text-green-600'
-                        }`}>
-                          {new Date(company.validityDate).toLocaleDateString()}
-                          {new Date(company.validityDate) < new Date() && ' (EXPIRED)'}
-                          {new Date(company.validityDate) >= new Date() && 
-                           new Date(company.validityDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && 
-                           ' (Expires Soon)'}
-                        </span>
-                      </p>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-2">ID: {company.id}</p>
+                    
+                    {/* Validity Date Display */}
+                    {company.validityDate ? (
+                      <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Validity Period</p>
+                            <p className={`text-lg font-semibold ${
+                              new Date(company.validityDate) < new Date() 
+                                ? 'text-red-600' 
+                                : new Date(company.validityDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                                  ? 'text-amber-600'
+                                  : 'text-green-600'
+                            }`}>
+                              {new Date(company.validityDate).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long', 
+                                day: 'numeric'
+                              })}
+                            </p>
+                            {new Date(company.validityDate) < new Date() && (
+                              <p className="text-sm text-red-600 font-medium">⚠️ EXPIRED</p>
+                            )}
+                            {new Date(company.validityDate) >= new Date() && 
+                             new Date(company.validityDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                              <p className="text-sm text-amber-600 font-medium">⚠️ Expires Soon</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Days Remaining</p>
+                            <p className={`text-lg font-bold ${
+                              Math.ceil((new Date(company.validityDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 0
+                                ? 'text-red-600'
+                                : Math.ceil((new Date(company.validityDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 30
+                                  ? 'text-amber-600' 
+                                  : 'text-green-600'
+                            }`}>
+                              {Math.max(0, Math.ceil((new Date(company.validityDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                        <p className="text-sm text-gray-500">No validity date set</p>
+                      </div>
                     )}
                   </div>
                 </div>
-                <div className="flex space-x-2">
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col space-y-2 ml-4">
                   <button
                     onClick={() => toggleCompanyStatus(company.id, company.isActive)}
-                    className={`px-3 py-1 rounded-md text-sm font-medium ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       company.isActive 
-                        ? 'bg-red-100 text-red-800 hover:bg-red-200' 
-                        : 'bg-green-100 text-green-800 hover:bg-green-200'
+                        ? 'bg-red-600 text-white hover:bg-red-700' 
+                        : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
                   >
-                    {company.isActive ? 'Suspend' : 'Activate'}
+                    {company.isActive ? '🚫 Suspend' : '✅ Activate'}
                   </button>
+                  
                   {company.validityDate && (
-                    <button
-                      onClick={() => openExtendValidityModal(company)}
-                      className="px-3 py-1 bg-blue-100 text-blue-800 rounded-md text-sm font-medium hover:bg-blue-200"
-                    >
-                      Extend Validity
-                    </button>
+                    <>
+                      <button
+                        onClick={() => renewCompanyByOneYear(company)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        📅 +1 Year
+                      </button>
+                      <button
+                        onClick={() => openExtendValidityModal(company)}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                      >
+                        📝 Custom Date
+                      </button>
+                    </>
                   )}
-                  <button
-                    onClick={() => impersonateCompany(company.id)}
-                    className="px-3 py-1 bg-purple-100 text-purple-800 rounded-md text-sm font-medium hover:bg-purple-200"
-                  >
-                    Impersonate
-                  </button>
                 </div>
               </div>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       </div>
 
       {/* Extend Validity Modal */}
