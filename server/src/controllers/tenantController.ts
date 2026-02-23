@@ -685,49 +685,143 @@ export const getProfitReport = async (req: AuthRequest, res: Response) => {
   }
 }
 
-// Analytics Graph Data
+// Enhanced Analytics Graph Data
 export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
   try {
     const companyId = req.user?.companyId;
     if (!companyId) return res.status(400).json({ error: 'Company ID required' });
 
+    const { groupBy = 'day' } = req.query; // day, week, month, year
     const bikes = await db.findBikesByCompany(companyId);
+
+    // Calculate overall statistics
+    const totalBikes = bikes.length;
+    const soldBikes = bikes.filter(bike => bike.isSold);
+    const availableBikes = bikes.filter(bike => !bike.isSold);
+    const totalRevenue = soldBikes.reduce((sum, bike) => sum + (bike.soldPrice || 0), 0);
+    const totalCost = soldBikes.reduce((sum, bike) => sum + (bike.boughtPrice || 0), 0);
+    const totalProfit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    const avgProfitPerBike = soldBikes.length > 0 ? totalProfit / soldBikes.length : 0;
+
+    // Function to get date key based on groupBy parameter
+    const getDateKey = (date: Date, groupBy: string) => {
+      switch (groupBy) {
+        case 'week':
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay());
+          return weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        case 'month':
+          return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        case 'year':
+          return date.getFullYear().toString();
+        default: // day
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    };
 
     const salesGroups: Record<string, any> = {};
     const inventoryGroups: Record<string, any> = {};
+    const monthlyData: Record<string, any> = {};
 
     bikes.forEach(b => {
       // Inventory tracking (by createdAt)
       if (b.createdAt) {
         const cDate = new Date(b.createdAt);
-        const cKey = cDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const cKey = getDateKey(cDate, groupBy as string);
         if (!inventoryGroups[cKey]) {
-          inventoryGroups[cKey] = { name: cKey, dateValue: cDate.getTime(), Count: 0, 'Bought Price': 0 };
+          inventoryGroups[cKey] = { 
+            name: cKey, 
+            dateValue: cDate.getTime(), 
+            Count: 0, 
+            'Bought Price': 0,
+            'Avg Price': 0
+          };
         }
         inventoryGroups[cKey].Count += 1;
         inventoryGroups[cKey]['Bought Price'] += (b.boughtPrice || 0);
+        inventoryGroups[cKey]['Avg Price'] = inventoryGroups[cKey]['Bought Price'] / inventoryGroups[cKey].Count;
       }
 
       // Sales tracking (by soldAt or updatedAt)
       if (b.isSold && b.soldPrice) {
         const sDate = new Date(b.soldAt || b.updatedAt);
         if (sDate.toString() !== 'Invalid Date') {
-          const sKey = sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const sKey = getDateKey(sDate, groupBy as string);
           if (!salesGroups[sKey]) {
-            salesGroups[sKey] = { name: sKey, dateValue: sDate.getTime(), Count: 0, Revenue: 0, Profit: 0, 'Bought Price': 0 };
+            salesGroups[sKey] = { 
+              name: sKey, 
+              dateValue: sDate.getTime(), 
+              Count: 0, 
+              Revenue: 0, 
+              Profit: 0, 
+              'Bought Price': 0,
+              'Profit Margin': 0,
+              'Avg Revenue': 0,
+              'Avg Profit': 0
+            };
           }
+          const profit = (b.soldPrice - (b.boughtPrice || 0));
           salesGroups[sKey].Count += 1;
           salesGroups[sKey].Revenue += b.soldPrice;
           salesGroups[sKey]['Bought Price'] += (b.boughtPrice || 0);
-          salesGroups[sKey].Profit += (b.soldPrice - (b.boughtPrice || 0));
+          salesGroups[sKey].Profit += profit;
+          salesGroups[sKey]['Avg Revenue'] = salesGroups[sKey].Revenue / salesGroups[sKey].Count;
+          salesGroups[sKey]['Avg Profit'] = salesGroups[sKey].Profit / salesGroups[sKey].Count;
+          salesGroups[sKey]['Profit Margin'] = salesGroups[sKey].Revenue > 0 ? 
+            (salesGroups[sKey].Profit / salesGroups[sKey].Revenue) * 100 : 0;
         }
       }
     });
 
+    // Monthly summary for trend analysis
+    const monthlyStats: Record<string, any> = {};
+    soldBikes.forEach(bike => {
+      const date = new Date(bike.soldAt || bike.updatedAt);
+      const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      if (!monthlyStats[monthKey]) {
+        monthlyStats[monthKey] = { revenue: 0, profit: 0, count: 0, avgProfit: 0 };
+      }
+      monthlyStats[monthKey].revenue += bike.soldPrice || 0;
+      monthlyStats[monthKey].profit += (bike.soldPrice || 0) - (bike.boughtPrice || 0);
+      monthlyStats[monthKey].count += 1;
+      monthlyStats[monthKey].avgProfit = monthlyStats[monthKey].profit / monthlyStats[monthKey].count;
+    });
+
     const inventoryData = Object.values(inventoryGroups).sort((a: any, b: any) => a.dateValue - b.dateValue);
     const salesData = Object.values(salesGroups).sort((a: any, b: any) => a.dateValue - b.dateValue);
+    const trendData = Object.entries(monthlyStats).map(([month, stats]: [string, any]) => ({
+      month,
+      ...stats
+    }));
 
-    res.json({ inventoryData, salesData });
+    // Top performing bikes (by profit)
+    const topProfitBikes = soldBikes
+      .map(bike => ({
+        name: bike.name,
+        regNo: bike.regNo,
+        profit: (bike.soldPrice || 0) - (bike.boughtPrice || 0),
+        profitMargin: bike.soldPrice ? (((bike.soldPrice - (bike.boughtPrice || 0)) / bike.soldPrice) * 100) : 0
+      }))
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 10);
+
+    res.json({ 
+      inventoryData, 
+      salesData,
+      trendData,
+      topProfitBikes,
+      summary: {
+        totalBikes,
+        soldBikes: soldBikes.length,
+        availableBikes: availableBikes.length,
+        totalRevenue,
+        totalProfit,
+        profitMargin: Math.round(profitMargin * 100) / 100,
+        avgProfitPerBike: Math.round(avgProfitPerBike * 100) / 100,
+        totalCost
+      }
+    });
   } catch (error) {
     console.error('Analytics error:', error);
     res.status(500).json({ error: 'Failed to fetch analytics data' });

@@ -202,8 +202,14 @@ class ApiService {
     return response.data
   }
 
-  async getBikeAnalytics(): Promise<{ inventoryData: any[], salesData: any[] }> {
-    const response = await axios.get(`${API_URL}/api/tenant/bikes/analytics`, {
+  async getBikeAnalytics(groupBy: 'day' | 'week' | 'month' | 'year' = 'day'): Promise<{ 
+    inventoryData: any[], 
+    salesData: any[], 
+    trendData: any[], 
+    topProfitBikes: any[], 
+    summary: any 
+  }> {
+    const response = await axios.get(`${API_URL}/api/tenant/bikes/analytics?groupBy=${groupBy}`, {
       headers: this.safeGetAuthHeaders()
     })
     return response.data
