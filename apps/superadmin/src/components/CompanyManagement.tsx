@@ -896,8 +896,7 @@ export default function CompanyManagement() {
                 </div>
               </div>
             </div>
-          ))}
-          )}
+          )))}
         </div>
       </div>
 

@@ -205,9 +205,9 @@ class FirestoreService {
 
     const updatedData = {
       ...data,
-      name: data.name?.trim(),
-      email: data.email?.trim().toLowerCase(),
-      phoneNumber: data.phoneNumber?.trim()
+      name: data.name?.trim() || company.name,
+      email: data.email?.trim().toLowerCase() || company.email,
+      phoneNumber: data.phoneNumber?.trim() || company.phoneNumber
     };
 
     const updatedCompany: Company = {
