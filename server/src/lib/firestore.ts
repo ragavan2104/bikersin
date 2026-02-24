@@ -25,13 +25,118 @@ class FirestoreService {
   }
 
   // COMPANY OPERATIONS
+  async checkCompanyNameUnique(name: string, excludeId?: string): Promise<boolean> {
+    const companyQuery = firestore
+      .collection(COLLECTIONS.COMPANIES)
+      .where('name', '==', name.trim())
+      .limit(1);
+    
+    const companySnapshot = await companyQuery.get();
+    if (!companySnapshot.empty) {
+      const existingCompany = companySnapshot.docs[0].data();
+      if (!excludeId || existingCompany.id !== excludeId) {
+        return false; // Name already exists
+      }
+    }
+    return true;
+  }
+
+  async checkEmailUnique(email: string, excludeId?: string): Promise<boolean> {
+    if (!email || !email.trim()) return true;
+    
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // Check in companies collection
+    const companyQuery = firestore
+      .collection(COLLECTIONS.COMPANIES)
+      .where('email', '==', trimmedEmail)
+      .limit(1);
+    
+    const companySnapshot = await companyQuery.get();
+    if (!companySnapshot.empty) {
+      const existingCompany = companySnapshot.docs[0].data();
+      if (!excludeId || existingCompany.id !== excludeId) {
+        return false; // Email already exists in companies
+      }
+    }
+
+    // Check in customers collection
+    const customerQuery = firestore
+      .collection(COLLECTIONS.CUSTOMERS)
+      .where('email', '==', trimmedEmail)
+      .limit(1);
+    
+    const customerSnapshot = await customerQuery.get();
+    if (!customerSnapshot.empty) {
+      return false; // Email already exists in customers
+    }
+
+    return true;
+  }
+
+  async checkPhoneUnique(phoneNumber: string, excludeId?: string): Promise<boolean> {
+    if (!phoneNumber || !phoneNumber.trim()) return true;
+    
+    const trimmedPhone = phoneNumber.trim();
+    
+    // Check in companies collection
+    const companyQuery = firestore
+      .collection(COLLECTIONS.COMPANIES)
+      .where('phoneNumber', '==', trimmedPhone)
+      .limit(1);
+    
+    const companySnapshot = await companyQuery.get();
+    if (!companySnapshot.empty) {
+      const existingCompany = companySnapshot.docs[0].data();
+      if (!excludeId || existingCompany.id !== excludeId) {
+        return false; // Phone already exists in companies
+      }
+    }
+
+    // Check in customers collection
+    const customerQuery = firestore
+      .collection(COLLECTIONS.CUSTOMERS)
+      .where('phone', '==', trimmedPhone)
+      .limit(1);
+    
+    const customerSnapshot = await customerQuery.get();
+    if (!customerSnapshot.empty) {
+      return false; // Phone already exists in customers
+    }
+
+    return true;
+  }
+
   async createCompany(data: Omit<Company, keyof BaseDocument>): Promise<Company> {
+    // Validate uniqueness
+    const isNameUnique = await this.checkCompanyNameUnique(data.name);
+    if (!isNameUnique) {
+      throw new Error('Company name already exists');
+    }
+
+    if (data.email) {
+      const isEmailUnique = await this.checkEmailUnique(data.email);
+      if (!isEmailUnique) {
+        throw new Error('Email address already exists');
+      }
+    }
+
+    if (data.phoneNumber) {
+      const isPhoneUnique = await this.checkPhoneUnique(data.phoneNumber);
+      if (!isPhoneUnique) {
+        throw new Error('Phone number already exists');
+      }
+    }
+
     const id = this.generateId();
     const timestamp = this.getTimestamp();
     
     const company: Company = {
       id,
       ...data,
+      name: data.name.trim(),
+      email: data.email?.trim().toLowerCase(),
+      phoneNumber: data.phoneNumber?.trim(),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -76,9 +181,38 @@ class FirestoreService {
     const company = await this.findCompanyById(id);
     if (!company) return null;
 
+    // Validate uniqueness for updates
+    if (data.name && data.name !== company.name) {
+      const isNameUnique = await this.checkCompanyNameUnique(data.name, id);
+      if (!isNameUnique) {
+        throw new Error('Company name already exists');
+      }
+    }
+
+    if (data.email && data.email !== company.email) {
+      const isEmailUnique = await this.checkEmailUnique(data.email, id);
+      if (!isEmailUnique) {
+        throw new Error('Email address already exists');
+      }
+    }
+
+    if (data.phoneNumber && data.phoneNumber !== company.phoneNumber) {
+      const isPhoneUnique = await this.checkPhoneUnique(data.phoneNumber, id);
+      if (!isPhoneUnique) {
+        throw new Error('Phone number already exists');
+      }
+    }
+
+    const updatedData = {
+      ...data,
+      name: data.name?.trim(),
+      email: data.email?.trim().toLowerCase(),
+      phoneNumber: data.phoneNumber?.trim()
+    };
+
     const updatedCompany: Company = {
       ...company,
-      ...data,
+      ...updatedData,
       updatedAt: this.getTimestamp(),
     };
 

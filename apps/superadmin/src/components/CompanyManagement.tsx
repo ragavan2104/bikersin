@@ -42,6 +42,9 @@ export default function CompanyManagement() {
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'suspended'>('all');
+  const [filterIndustry, setFilterIndustry] = useState<string>('all');
 
   // Create company form
   const [newCompany, setNewCompany] = useState({
@@ -167,6 +170,33 @@ export default function CompanyManagement() {
       alert('Error deleting company');
     }
   };
+
+  // Filter and search logic
+  const filteredCompanies = companies.filter(company => {
+    const matchesSearch = !searchTerm || 
+      company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      company.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      company.phoneNumber?.includes(searchTerm) ||
+      company.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      company.id.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = 
+      filterStatus === 'all' || 
+      (filterStatus === 'active' && company.isActive) || 
+      (filterStatus === 'suspended' && !company.isActive);
+
+    const matchesIndustry = 
+      filterIndustry === 'all' || 
+      company.industry === filterIndustry ||
+      (!company.industry && filterIndustry === 'not-specified');
+
+    return matchesSearch && matchesStatus && matchesIndustry;
+  });
+
+  // Get unique industries for filter
+  const industries = Array.from(new Set(
+    companies.map(c => c.industry).filter(Boolean)
+  )).sort();
 
   const openExtendValidityModal = (company: Company) => {
     setSelectedCompany(company);
@@ -377,6 +407,68 @@ export default function CompanyManagement() {
           >
             Create Admin User
           </button>
+        </div>
+      </div>
+
+      {/* Search and Filter Controls */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search Companies</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name, email, phone, address, or ID..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'suspended')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
+            <select
+              value={filterIndustry}
+              onChange={(e) => setFilterIndustry(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Industries</option>
+              <option value="not-specified">Not Specified</option>
+              {industries.map(industry => (
+                <option key={industry} value={industry}>{industry}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
+        <div className="mt-3 flex justify-between items-center text-sm text-gray-600">
+          <span>
+            Showing {filteredCompanies.length} of {companies.length} companies
+          </span>
+          {(searchTerm || filterStatus !== 'all' || filterIndustry !== 'all') && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setFilterStatus('all');
+                setFilterIndustry('all');
+              }}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -646,7 +738,16 @@ export default function CompanyManagement() {
       {/* Companies Grid */}
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
         <div className="divide-y divide-gray-200">
-          {companies.map((company) => (
+          {filteredCompanies.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-gray-500 text-lg">
+                {searchTerm || filterStatus !== 'all' || filterIndustry !== 'all' 
+                  ? 'No companies match your search criteria' 
+                  : 'No companies found'}
+              </p>
+            </div>
+          ) : (
+            filteredCompanies.map((company) => (
             <div key={company.id} className="p-6">
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-4">
@@ -796,6 +897,7 @@ export default function CompanyManagement() {
               </div>
             </div>
           ))}
+          )}
         </div>
       </div>
 

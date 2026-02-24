@@ -30,10 +30,11 @@ router.get('/companies', async (req, res) => {
     const formattedCompanies = companies.map(company => ({
       id: company.id,
       name: company.name,
+      logo: company.logo,
       isActive: company.isActive
     }));
     
-    console.log('Companies fetched:', formattedCompanies);
+    console.log('Companies fetched:', formattedCompanies.length);
     res.json(formattedCompanies);
   } catch (error) {
     console.error('Get companies error:', error);

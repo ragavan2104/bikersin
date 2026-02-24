@@ -60,11 +60,22 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
         
         res.json(company);
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Unique constraint')) {
-            res.status(400).json({ error: 'Company with this name already exists' });
-        } else {
-            res.status(500).json({ error: 'Failed to create company' });
+        console.error('Create company error:', error);
+        if (error instanceof Error) {
+            if (error.message.includes('Company name already exists')) {
+                return res.status(409).json({ error: 'Company name already exists' });
+            }
+            if (error.message.includes('Email address already exists')) {
+                return res.status(409).json({ error: 'Email address is already in use' });
+            }
+            if (error.message.includes('Phone number already exists')) {
+                return res.status(409).json({ error: 'Phone number is already in use' });
+            }
+            if (error.message.includes('Unique constraint')) {
+                return res.status(409).json({ error: 'Company with this information already exists' });
+            }
         }
+        res.status(500).json({ error: 'Failed to create company' });
     }
 };
 
