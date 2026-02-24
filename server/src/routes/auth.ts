@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../lib/db';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
+import { forgotPassword, resetPassword } from '../controllers/authController';
 
 const router = Router();
 
@@ -134,105 +135,9 @@ router.get('/profile', async (req, res) => {
 });
 
 // Forgot password endpoint
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-    
-    // Always return success for security (don't reveal if email exists)
-    const response = { message: 'If account exists, password reset link has been sent' };
-    
-    const user = await db.findUserByEmail(email);
-    if (!user) {
-      // Still return success but don't process further
-      return res.json(response);
-    }
-    
-    // Generate secure token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-    
-    // Set expiration (15 minutes)
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    
-    // Clean up any existing unused tokens for this user
-    const existingResets = await db.findPasswordResetsByUserId(user.id);
-    for (const reset of existingResets) {
-      if (!reset.used) {
-        await db.markPasswordResetAsUsed(reset.id);
-      }
-    }
-    
-    // Create new password reset record
-    await db.createPasswordReset({
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-      used: false
-    });
-    
-    // TODO: Send email with reset link
-    // const resetUrl = `${process.env.FRONTEND_URL || 'https://mybikers.ragav.dev'}/reset-password?token=${resetToken}`;
-    console.log(`Password reset requested for ${email}. Token: ${resetToken}`);
-    
-    res.json(response);
-  } catch (error) {
-    console.error('Forgot password error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+router.post('/forgot-password', forgotPassword);
 
 // Reset password endpoint
-router.post('/reset-password', async (req, res) => {
-  try {
-    const { token, newPassword } = req.body;
-    
-    if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Token and new password are required' });
-    }
-    
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
-    
-    // Hash the token to find the reset record
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    
-    // Find valid, unused, non-expired reset record
-    const passwordReset = await db.findPasswordResetByToken(tokenHash);
-    if (!passwordReset) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
-    }
-    
-    // Check if token is expired
-    if (new Date(passwordReset.expiresAt) < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' });
-    }
-    
-    // Check if token is already used
-    if (passwordReset.used) {
-      return res.status(400).json({ error: 'Reset token has already been used' });
-    }
-    
-    // Hash the new password
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    
-    // Update user's password
-    await db.updateUser(passwordReset.userId, { passwordHash });
-    
-    // Mark token as used
-    await db.markPasswordResetAsUsed(passwordReset.id);
-    
-    console.log(`Password reset completed for user ${passwordReset.userId}`);
-    
-    res.json({ message: 'Password reset successful' });
-  } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+router.post('/reset-password', resetPassword);
 
 export default router;

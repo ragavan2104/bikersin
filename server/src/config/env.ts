@@ -51,4 +51,13 @@ export const config = {
   FIREBASE_PROJECT_ID,
   FIREBASE_CLIENT_EMAIL,
   FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  
+  // Email configuration
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || '587'),
+  SMTP_SECURE: process.env.SMTP_SECURE === 'true',
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@bikersin.com',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
 };
