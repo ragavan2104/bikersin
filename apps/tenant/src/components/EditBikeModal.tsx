@@ -6,6 +6,10 @@ interface Bike {
   name: string
   regNo: string
   boughtPrice: number
+  expenditure?: number
+  rcNo?: string
+  panNumber?: string
+  address?: string
   soldPrice?: number
   isSold: boolean
 }
@@ -20,15 +24,26 @@ export default function EditBikeModal({ bike, onClose, onSubmit }: EditBikeModal
   const [formData, setFormData] = useState({
     name: bike.name,
     regNo: bike.regNo,
-    boughtPrice: bike.boughtPrice.toString()
+    boughtPrice: bike.boughtPrice.toString(),
+    expenditure: bike.expenditure?.toString() || '',
+    rcNo: bike.rcNo || '',
+    panNumber: bike.panNumber || '',
+    address: bike.address || ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    let value = e.target.value
+    
+    // Auto-convert PAN number to uppercase
+    if (e.target.name === 'panNumber') {
+      value = value.toUpperCase()
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [e.target.name]: value
     }))
     setError('')
   }
@@ -38,11 +53,25 @@ export default function EditBikeModal({ bike, onClose, onSubmit }: EditBikeModal
     setError('')
     setIsSubmitting(true)
 
+    // Validate PAN number format if provided
+    if (formData.panNumber.trim()) {
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+      if (!panRegex.test(formData.panNumber.trim().toUpperCase())) {
+        setError('PAN number must be in format: ABCDE1234F')
+        setIsSubmitting(false)
+        return
+      }
+    }
+
     try {
       await onSubmit({
         name: formData.name.trim(),
         regNo: formData.regNo.trim(),
-        boughtPrice: parseFloat(formData.boughtPrice)
+        boughtPrice: parseFloat(formData.boughtPrice),
+        expenditure: formData.expenditure.trim() ? parseInt(formData.expenditure) : undefined,
+        rcNo: formData.rcNo.trim() || undefined,
+        panNumber: formData.panNumber.trim().toUpperCase() || undefined,
+        address: formData.address.trim() || undefined
       })
     } catch (err: any) {
       setError(err.message || 'Failed to update bike')
@@ -140,6 +169,70 @@ export default function EditBikeModal({ bike, onClose, onSubmit }: EditBikeModal
                     onChange={handleChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="0.00"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="expenditure" className="block text-sm font-medium text-gray-700">
+                    Expenditure (₹) (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    id="expenditure"
+                    name="expenditure"
+                    min="0"
+                    step="1"
+                    value={formData.expenditure}
+                    onChange={handleChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="rcNo" className="block text-sm font-medium text-gray-700">
+                    RC Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="rcNo"
+                    name="rcNo"
+                    value={formData.rcNo}
+                    onChange={handleChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="e.g., RC123456789"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="panNumber" className="block text-sm font-medium text-gray-700">
+                    PAN Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="panNumber"
+                    name="panNumber"
+                    maxLength={10}
+                    value={formData.panNumber}
+                    onChange={handleChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="ABCDE1234F"
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                    Address (Optional)
+                  </label>
+                  <textarea
+                    id="address"
+                    name="address"
+                    rows={3}
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Enter address..."
                   />
                 </div>
 

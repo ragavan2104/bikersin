@@ -186,7 +186,7 @@ export const getBikeDetails = async (req: AuthRequest, res: Response) => {
 
 export const addBike = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, regNo, aadhaarNumber, boughtPrice } = req.body
+    const { name, regNo, aadhaarNumber, boughtPrice, expenditure, rcNo, panNumber, address } = req.body
     const companyId = req.user?.companyId
     const addedById = req.user?.userId
 
@@ -206,6 +206,22 @@ export const addBike = async (req: AuthRequest, res: Response) => {
       throw new ValidationError('Bought price must be a valid positive number')
     }
 
+    let parsedExpenditure = 0
+    if (expenditure !== undefined && expenditure !== null && expenditure !== '') {
+      parsedExpenditure = parseInt(expenditure.toString())
+      if (isNaN(parsedExpenditure) || parsedExpenditure < 0) {
+        throw new ValidationError('Expenditure must be a valid non-negative integer')
+      }
+    }
+
+    // Validate PAN number format if provided (10 characters: 5 letters, 4 digits, 1 letter)
+    if (panNumber && panNumber.trim()) {
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+      if (!panRegex.test(panNumber.trim().toUpperCase())) {
+        throw new ValidationError('PAN number must be in format: ABCDE1234F')
+      }
+    }
+
     // Check for duplicate registration number within company
     const existingBike = await db.findBikeByRegNo(regNo.trim(), companyId);
 
@@ -218,6 +234,10 @@ export const addBike = async (req: AuthRequest, res: Response) => {
       regNo: regNo.trim().toUpperCase(),
       aadhaarNumber: aadhaarNumber.trim(),
       boughtPrice: parsedBoughtPrice,
+      expenditure: expenditure !== undefined && expenditure !== null && expenditure !== '' ? parsedExpenditure : undefined,
+      rcNo: rcNo?.trim() || undefined,
+      panNumber: panNumber?.trim().toUpperCase() || undefined,
+      address: address?.trim() || undefined,
       isSold: false,
       companyId,
       addedById
@@ -248,7 +268,7 @@ export const addBike = async (req: AuthRequest, res: Response) => {
 export const updateBike = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params
-    const { name, regNo, aadhaarNumber, boughtPrice } = req.body
+    const { name, regNo, aadhaarNumber, boughtPrice, expenditure, rcNo, panNumber, address } = req.body
     const companyId = req.user?.companyId
 
     if (!companyId) {
@@ -279,11 +299,37 @@ export const updateBike = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Validate PAN number format if provided
+    if (panNumber && panNumber.trim()) {
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+      if (!panRegex.test(panNumber.trim().toUpperCase())) {
+        throw new ValidationError('PAN number must be in format: ABCDE1234F')
+      }
+    }
+
+    // Validate expenditure if provided
+    if (expenditure !== undefined && expenditure !== null && expenditure !== '') {
+      const parsedExpenditure = parseInt(expenditure.toString())
+      if (isNaN(parsedExpenditure) || parsedExpenditure < 0) {
+        throw new ValidationError('Expenditure must be a valid non-negative integer')
+      }
+    }
+
     const updateData: any = {};
     if (name) updateData.name = name.trim();
     if (regNo) updateData.regNo = regNo.trim();
     if (aadhaarNumber) updateData.aadhaarNumber = aadhaarNumber.trim();
     if (boughtPrice) updateData.boughtPrice = parseFloat(boughtPrice);
+    if (expenditure !== undefined) {
+      if (expenditure === null || expenditure === '') {
+        updateData.expenditure = null;
+      } else {
+        updateData.expenditure = parseInt(expenditure.toString());
+      }
+    }
+    if (rcNo !== undefined) updateData.rcNo = rcNo.trim() || null;
+    if (panNumber !== undefined) updateData.panNumber = panNumber.trim().toUpperCase() || null;
+    if (address !== undefined) updateData.address = address.trim() || null;
 
     const updatedBike = await db.updateBike(id, updateData);
 

@@ -36,6 +36,10 @@ export interface Bike extends BaseDocument {
   regNo: string;
   aadhaarNumber: string;
   boughtPrice: number;
+  expenditure?: number;
+  rcNo?: string;
+  panNumber?: string;
+  address?: string;
   soldPrice?: number;
   soldAt?: string;
   isSold: boolean;

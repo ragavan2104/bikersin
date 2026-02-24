@@ -99,7 +99,11 @@ export const validateRequest = (rules: ValidationRule[]) => {
 export const bikeValidationRules: ValidationRule[] = [
   { field: 'name', required: true, type: 'string', minLength: 2, maxLength: 100 },
   { field: 'regNo', required: true, type: 'string', minLength: 2, maxLength: 20 },
-  { field: 'boughtPrice', required: true, type: 'number', min: 0 }
+  { field: 'boughtPrice', required: true, type: 'number', min: 0 },
+  { field: 'expenditure', required: false, type: 'number', min: 0 },
+  { field: 'rcNo', required: false, type: 'string', maxLength: 50 },
+  { field: 'panNumber', required: false, type: 'string', maxLength: 10 },
+  { field: 'address', required: false, type: 'string', maxLength: 500 }
 ];
 
 export const userValidationRules: ValidationRule[] = [
