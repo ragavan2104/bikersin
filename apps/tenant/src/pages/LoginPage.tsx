@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   useEffect(() => {
     fetchCompanies();
@@ -74,9 +75,10 @@ export default function LoginPage() {
     }
   };
 
-  const filteredCompanies = companies.filter(company =>
-    company.name.toLowerCase().includes(companySearch.toLowerCase())
-  );
+  const filteredCompanies = companySearch ? 
+    companies.filter(company =>
+      company.name.toLowerCase().includes(companySearch.toLowerCase())
+    ) : companies;
 
   const selectedCompany = companies.find(c => c.id === selectedCompanyId);
 
@@ -84,11 +86,13 @@ export default function LoginPage() {
     setSelectedCompanyId(company.id);
     setCompanySearch(company.name);
     setShowCompanyDropdown(false);
+    setHighlightedIndex(-1);
   };
 
   const handleCompanySearchChange = (value: string) => {
     setCompanySearch(value);
     setShowCompanyDropdown(true);
+    setHighlightedIndex(-1);
     
     // Clear selection if search doesn't match selected company
     if (selectedCompany && !selectedCompany.name.toLowerCase().includes(value.toLowerCase())) {
@@ -101,6 +105,53 @@ export default function LoginPage() {
     );
     if (exactMatch) {
       setSelectedCompanyId(exactMatch.id);
+    }
+  };
+
+  const handleCompanyInputFocus = () => {
+    setShowCompanyDropdown(true);
+    // If no search text, show all companies
+    if (!companySearch) {
+      setCompanySearch('');
+    }
+  };
+
+  const handleCompanyInputBlur = () => {
+    // Delay hiding to allow click on dropdown items
+    setTimeout(() => {
+      setShowCompanyDropdown(false);
+      setHighlightedIndex(-1);
+    }, 150);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showCompanyDropdown) return;
+
+    const visibleCompanies = filteredCompanies.length > 0 ? filteredCompanies : companies;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev => 
+          prev < visibleCompanies.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => 
+          prev > 0 ? prev - 1 : visibleCompanies.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && visibleCompanies[highlightedIndex]) {
+          handleCompanySelect(visibleCompanies[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowCompanyDropdown(false);
+        setHighlightedIndex(-1);
+        break;
     }
   };
 
@@ -131,39 +182,41 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
           <div className="mb-4 relative">
             <label className="block text-gray-700 text-sm font-bold mb-2">
-              Company
+              Select Your Dealership
             </label>
             <input
               type="text"
               value={companySearch}
               onChange={(e) => handleCompanySearchChange(e.target.value)}
-              onFocus={() => setShowCompanyDropdown(true)}
-              onBlur={() => {
-                // Delay hiding to allow click on dropdown items
-                setTimeout(() => setShowCompanyDropdown(false), 150);
-              }}
+              onFocus={handleCompanyInputFocus}
+              onBlur={handleCompanyInputBlur}
+              onKeyDown={handleKeyDown}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
-              placeholder="Search and select your company..."
+              placeholder="Type to search or click to see all dealerships..."
               required
             />
             <div className="absolute inset-y-0 right-0 top-6 pr-3 flex items-center pointer-events-none">
               <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
               </svg>
             </div>
             
-            {showCompanyDropdown && companySearch && (
+            {showCompanyDropdown && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                {filteredCompanies.length === 0 ? (
+                {(companySearch ? filteredCompanies : companies).length === 0 ? (
                   <div className="px-3 py-2 text-gray-500 text-sm">
-                    No companies found matching "{companySearch}"
+                    {companySearch ? `No companies found matching "${companySearch}"` : 'No companies available'}
                   </div>
                 ) : (
-                  filteredCompanies.map((company) => (
+                  (companySearch ? filteredCompanies : companies).map((company, index) => (
                     <div
                       key={company.id}
                       onClick={() => handleCompanySelect(company)}
-                      className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      className={`px-3 py-2 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                        index === highlightedIndex 
+                          ? 'bg-blue-100 text-blue-900' 
+                          : 'hover:bg-blue-50'
+                      } ${selectedCompanyId === company.id ? 'bg-blue-50 text-blue-900' : 'text-gray-900'}`}
                     >
                       <div className="flex items-center space-x-2">
                         {company.logo && (
@@ -173,19 +226,16 @@ export default function LoginPage() {
                             className="h-6 w-6 rounded-full object-cover"
                           />
                         )}
-                        <span className="text-gray-900">{company.name}</span>
+                        <span className="font-medium">{company.name}</span>
+                        {selectedCompanyId === company.id && (
+                          <svg className="h-4 w-4 text-blue-600 ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
                       </div>
                     </div>
                   ))
                 )}
-              </div>
-            )}
-            
-            {selectedCompanyId && !companySearch && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-                <div className="px-3 py-2 text-gray-500 text-sm">
-                  Start typing to search companies...
-                </div>
               </div>
             )}
           </div>
