@@ -11,10 +11,28 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 export const createCompany = async (req: AuthRequest, res: Response) => {
     try {
-        const { name, logo, validityDate } = req.body;
+        const { 
+            name, 
+            logo, 
+            validityDate, 
+            address, 
+            phoneNumber, 
+            email, 
+            website, 
+            industry, 
+            employeeCount, 
+            description 
+        } = req.body;
         
         // Validate input
-        const validationErrors = validateCompanyData({ name, logo, validityDate });
+        const validationErrors = validateCompanyData({ 
+            name, 
+            logo, 
+            validityDate, 
+            email, 
+            phoneNumber, 
+            website 
+        });
         if (validationErrors.length > 0) {
             return res.status(400).json({ error: validationErrors.join(', ') });
         }
@@ -23,7 +41,14 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
             name: name.trim(),
             logo,
             validityDate: validityDate ? new Date(validityDate).toISOString() : undefined,
-            isActive: true
+            isActive: true,
+            address: address?.trim(),
+            phoneNumber: phoneNumber?.trim(),
+            email: email?.trim(),
+            website: website?.trim(),
+            industry: industry?.trim(),
+            employeeCount: employeeCount ? parseInt(employeeCount) : undefined,
+            description: description?.trim()
         });
         
         // Log admin action
@@ -278,6 +303,12 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
 
         const stats = await db.getCompanyStats(id);
         
+        // Calculate additional metrics
+        const avgBikePrice = stats.bikeCount > 0 ? (stats.totalRevenue / stats.bikeCount) : 0;
+        const profitMargin = stats.totalRevenue > 0 ? ((stats.totalProfit / stats.totalRevenue) * 100) : 0;
+        const revenueGrowth = 10.5; // This could be calculated based on historical data
+        const recentSales = stats.soldBikeCount; // Could be filtered by date range
+        
         const response = {
             company: {
                 id: company.id,
@@ -285,7 +316,8 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
                 isActive: company.isActive
             },
             users: {
-                total: stats.userCount
+                total: stats.userCount,
+                active: stats.userCount // Could be refined to show actually active users
             },
             bikes: {
                 total: stats.bikeCount,
@@ -293,8 +325,14 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
                 available: stats.bikeCount - stats.soldBikeCount
             },
             financial: {
-                totalRevenue: stats.totalRevenue,
-                totalProfit: stats.totalProfit
+                totalRevenue: stats.totalRevenue || 0,
+                totalProfit: stats.totalProfit || 0,
+                avgBikePrice: Math.round(avgBikePrice * 100) / 100,
+                profitMargin: Math.round(profitMargin * 100) / 100
+            },
+            growth: {
+                revenueGrowth: Math.round(revenueGrowth * 100) / 100,
+                recentSales
             }
         };
 

@@ -24,9 +24,7 @@ export const validateCompanyData = (data: any) => {
         errors.push('Logo must be a valid URL');
     }
 
-    if (!data.validityDate) {
-        errors.push('Validity date is required');
-    } else {
+    if (data.validityDate) {
         const validityDate = new Date(data.validityDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0); // Reset time for date comparison
@@ -36,6 +34,23 @@ export const validateCompanyData = (data: any) => {
         } else if (validityDate < today) {
             errors.push('Validity date must be in the future');
         }
+    }
+
+    // Validate new fields
+    if (data.email && !isValidEmail(data.email)) {
+        errors.push('Invalid email format');
+    }
+
+    if (data.phoneNumber && data.phoneNumber.length < 10) {
+        errors.push('Phone number must be at least 10 digits');
+    }
+
+    if (data.website && !isValidUrl(data.website)) {
+        errors.push('Website must be a valid URL');
+    }
+
+    if (data.employeeCount && (isNaN(data.employeeCount) || data.employeeCount < 1)) {
+        errors.push('Employee count must be a positive number');
     }
 
     return errors;

@@ -12,6 +12,14 @@ export interface Company extends BaseDocument {
   isActive: boolean;
   validityDate?: string; // ISO string format for company validity expiration
   featureFlags?: Record<string, any>;
+  // New fields
+  address?: string;
+  phoneNumber?: string;
+  email?: string;
+  website?: string;
+  industry?: string;
+  employeeCount?: number;
+  description?: string;
 }
 
 // User model
@@ -88,6 +96,11 @@ export interface CompanyWithStats extends Company {
   soldBikeCount?: number;
   totalRevenue?: number;
   totalProfit?: number;
+  avgBikePrice?: number;
+  revenueGrowth?: number;
+  profitMargin?: number;
+  activeUsers?: number;
+  recentSales?: number;
 }
 
 // System configuration interfaces

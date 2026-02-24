@@ -10,6 +10,21 @@ interface Company {
   isActive: boolean;
   validityDate?: string;
   createdAt: string;
+  // New fields
+  address?: string;
+  phoneNumber?: string;
+  email?: string;
+  website?: string;
+  industry?: string;
+  employeeCount?: number;
+  description?: string;
+}
+
+interface CompanyStats {
+  users: { total: number; active: number };
+  bikes: { total: number; sold: number; available: number };
+  financial: { totalRevenue: number; totalProfit: number; avgBikePrice: number; profitMargin: number };
+  growth: { revenueGrowth: number; recentSales: number };
 }
 
 export default function CompanyManagement() {
@@ -23,12 +38,23 @@ export default function CompanyManagement() {
   const [newValidityDate, setNewValidityDate] = useState('');
   const [expiredCompanies, setExpiredCompanies] = useState<Company[]>([]);
   const [expiringSoon, setExpiringSoon] = useState<Company[]>([]);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
 
   // Create company form
   const [newCompany, setNewCompany] = useState({
     name: '',
     logo: '',
-    validityDate: ''
+    validityDate: '',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    website: '',
+    industry: '',
+    employeeCount: '',
+    description: ''
   });
 
   // Create user form
@@ -78,6 +104,67 @@ export default function CompanyManagement() {
       }
     } catch (error) {
       console.error('Failed to fetch expired companies:', error);
+    }
+  };
+
+  const fetchCompanyStats = async (companyId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/superadmin/companies/${companyId}/stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCompanyStats({
+          users: { total: data.users.total, active: data.users.active || data.users.total },
+          bikes: data.bikes,
+          financial: {
+            ...data.financial,
+            avgBikePrice: data.financial.avgBikePrice || 0,
+            profitMargin: data.financial.profitMargin || 0
+          },
+          growth: {
+            revenueGrowth: data.growth?.revenueGrowth || 0,
+            recentSales: data.growth?.recentSales || 0
+          }
+        });
+        setShowStatsModal(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch company stats:', error);
+      alert('Failed to load company statistics');
+    }
+  };
+
+  const handleDeleteCompany = (company: Company) => {
+    setCompanyToDelete(company);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!companyToDelete) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/api/superadmin/companies/${companyToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        setShowDeleteConfirm(false);
+        setCompanyToDelete(null);
+        fetchCompanies();
+        fetchExpiredCompanies();
+        alert('Company deleted successfully!');
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to delete company');
+      }
+    } catch (error) {
+      alert('Error deleting company');
     }
   };
 
@@ -180,21 +267,39 @@ export default function CompanyManagement() {
   const createCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const companyData = {
+        ...newCompany,
+        employeeCount: newCompany.employeeCount ? parseInt(newCompany.employeeCount) : undefined
+      };
+      
       const res = await fetch(`${API_URL}/api/superadmin/companies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(newCompany)
+        body: JSON.stringify(companyData)
       });
 
       if (res.ok) {
-        setNewCompany({ name: '', logo: '', validityDate: '' });
+        setNewCompany({ 
+          name: '', 
+          logo: '', 
+          validityDate: '',
+          address: '',
+          phoneNumber: '',
+          email: '',
+          website: '',
+          industry: '',
+          employeeCount: '',
+          description: ''
+        });
         setShowCreateForm(false);
         fetchCompanies();
+        alert('Company created successfully!');
       } else {
-        alert('Failed to create company');
+        const error = await res.json();
+        alert(error.error || 'Failed to create company');
       }
     } catch (error) {
       alert('Error creating company');
@@ -323,41 +428,140 @@ export default function CompanyManagement() {
       {/* Create Company Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-medium mb-4">Create New Company</h3>
             <form onSubmit={createCompany}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Company Name</label>
-                <input
-                  type="text"
-                  value={newCompany.name}
-                  onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Basic Information */}
+                <div className="md:col-span-2">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Basic Information</h4>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Company Name *</label>
+                  <input
+                    type="text"
+                    value={newCompany.name}
+                    onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Industry</label>
+                  <select
+                    value={newCompany.industry}
+                    onChange={(e) => setNewCompany({ ...newCompany, industry: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select Industry</option>
+                    <option value="Automotive">Automotive</option>
+                    <option value="Motorcycle Dealership">Motorcycle Dealership</option>
+                    <option value="Vehicle Trading">Vehicle Trading</option>
+                    <option value="Retail">Retail</option>
+                    <option value="Services">Services</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* Contact Information */}
+                <div className="md:col-span-2 mt-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Contact Information</h4>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    value={newCompany.email}
+                    onChange={(e) => setNewCompany({ ...newCompany, email: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={newCompany.phoneNumber}
+                    onChange={(e) => setNewCompany({ ...newCompany, phoneNumber: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Address</label>
+                  <textarea
+                    value={newCompany.address}
+                    onChange={(e) => setNewCompany({ ...newCompany, address: e.target.value })}
+                    rows={3}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Additional Details */}
+                <div className="md:col-span-2 mt-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Additional Details</h4>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Website</label>
+                  <input
+                    type="url"
+                    value={newCompany.website}
+                    onChange={(e) => setNewCompany({ ...newCompany, website: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="https://example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Employee Count</label>
+                  <input
+                    type="number"
+                    value={newCompany.employeeCount}
+                    onChange={(e) => setNewCompany({ ...newCompany, employeeCount: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    min="1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Logo URL</label>
+                  <input
+                    type="url"
+                    value={newCompany.logo}
+                    onChange={(e) => setNewCompany({ ...newCompany, logo: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Validity Date</label>
+                  <input
+                    type="date"
+                    value={newCompany.validityDate}
+                    onChange={(e) => setNewCompany({ ...newCompany, validityDate: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for no expiry</p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea
+                    value={newCompany.description}
+                    onChange={(e) => setNewCompany({ ...newCompany, description: e.target.value })}
+                    rows={3}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Brief description of the company..."
+                  />
+                </div>
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Logo URL (Optional)</label>
-                <input
-                  type="url"
-                  value={newCompany.logo}
-                  onChange={(e) => setNewCompany({ ...newCompany, logo: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Validity Date *</label>
-                <input
-                  type="date"
-                  value={newCompany.validityDate}
-                  onChange={(e) => setNewCompany({ ...newCompany, validityDate: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">Company access will expire on this date</p>
-              </div>
-              <div className="flex justify-end space-x-3">
+
+              <div className="flex justify-end space-x-3 mt-6">
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
@@ -369,7 +573,7 @@ export default function CompanyManagement() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  Create
+                  Create Company
                 </button>
               </div>
             </form>
@@ -459,8 +663,42 @@ export default function CompanyManagement() {
                       }`}>
                         {company.isActive ? 'Active' : 'Suspended'}
                       </span>
+                      {company.industry && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                          {company.industry}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-500 mb-2">ID: {company.id}</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                      <div>
+                        <p className="text-sm text-gray-500">Company ID: {company.id}</p>
+                        {company.email && (
+                          <p className="text-sm text-gray-600">📧 {company.email}</p>
+                        )}
+                        {company.phoneNumber && (
+                          <p className="text-sm text-gray-600">📞 {company.phoneNumber}</p>
+                        )}
+                        {company.website && (
+                          <p className="text-sm text-blue-600">
+                            🌐 <a href={company.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                              {company.website}
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        {company.employeeCount && (
+                          <p className="text-sm text-gray-600">👥 {company.employeeCount} employees</p>
+                        )}
+                        {company.address && (
+                          <p className="text-sm text-gray-600">📍 {company.address}</p>
+                        )}
+                        {company.description && (
+                          <p className="text-sm text-gray-600 italic">"{company.description}"</p>
+                        )}
+                      </div>
+                    </div>
                     
                     {/* Validity Date Display */}
                     {company.validityDate ? (
@@ -522,6 +760,20 @@ export default function CompanyManagement() {
                     }`}
                   >
                     {company.isActive ? '🚫 Suspend' : '✅ Activate'}
+                  </button>
+
+                  <button
+                    onClick={() => fetchCompanyStats(company.id)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                  >
+                    📊 Stats
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteCompany(company)}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                  >
+                    🗑️ Delete
                   </button>
                   
                   {company.validityDate && (
@@ -589,6 +841,149 @@ export default function CompanyManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Company Stats Modal */}
+      {showStatsModal && companyStats && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Company Statistics</h3>
+              <button
+                onClick={() => {
+                  setShowStatsModal(false);
+                  setCompanyStats(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {/* Users Stats */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Users</h4>
+                <p className="text-2xl font-bold text-blue-600">{companyStats.users.total}</p>
+                <p className="text-sm text-blue-600">Active: {companyStats.users.active}</p>
+              </div>
+
+              {/* Bikes Stats */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <h4 className="font-medium text-green-900 mb-2">Bikes</h4>
+                <p className="text-2xl font-bold text-green-600">{companyStats.bikes.total}</p>
+                <p className="text-sm text-green-600">
+                  Sold: {companyStats.bikes.sold} | Available: {companyStats.bikes.available}
+                </p>
+              </div>
+
+              {/* Revenue */}
+              <div className="bg-yellow-50 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-900 mb-2">Revenue</h4>
+                <p className="text-2xl font-bold text-yellow-600">
+                  ₹{companyStats.financial.totalRevenue.toLocaleString()}
+                </p>
+                <p className="text-sm text-yellow-600">
+                  Growth: {companyStats.growth.revenueGrowth}%
+                </p>
+              </div>
+
+              {/* Profit */}
+              <div className="bg-purple-50 rounded-lg p-4">
+                <h4 className="font-medium text-purple-900 mb-2">Profit</h4>
+                <p className="text-2xl font-bold text-purple-600">
+                  ₹{companyStats.financial.totalProfit.toLocaleString()}
+                </p>
+                <p className="text-sm text-purple-600">
+                  Margin: {companyStats.financial.profitMargin}%
+                </p>
+              </div>
+            </div>
+
+            {/* Additional Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-3">Financial Metrics</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Average Bike Price:</span>
+                    <span className="font-medium">₹{companyStats.financial.avgBikePrice.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Profit Margin:</span>
+                    <span className="font-medium">{companyStats.financial.profitMargin}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Recent Sales:</span>
+                    <span className="font-medium">{companyStats.growth.recentSales} bikes</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-3">Performance</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Sales Rate:</span>
+                    <span className="font-medium">
+                      {companyStats.bikes.total > 0 
+                        ? Math.round((companyStats.bikes.sold / companyStats.bikes.total) * 100) 
+                        : 0}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Users per Bike:</span>
+                    <span className="font-medium">
+                      {companyStats.bikes.total > 0 
+                        ? (companyStats.users.total / companyStats.bikes.total).toFixed(1)
+                        : '0'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Revenue Growth:</span>
+                    <span className="font-medium text-green-600">+{companyStats.growth.revenueGrowth}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && companyToDelete && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-medium mb-4 text-red-600">Delete Company</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to delete <strong>{companyToDelete.name}</strong>? 
+              This action cannot be undone and will remove all associated data including:
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-600 mb-6">
+              <li>All users associated with this company</li>
+              <li>All bikes and inventory data</li>
+              <li>All sales and financial records</li>
+              <li>All company settings and configurations</li>
+            </ul>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setCompanyToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete Company
+              </button>
+            </div>
           </div>
         </div>
       )}
