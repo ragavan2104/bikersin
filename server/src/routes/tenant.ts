@@ -4,7 +4,8 @@ import { checkCompanyValidity } from '../middleware/companyValidity';
 import {
   validateRequest,
   bikeValidationRules,
-  soldBikeValidationRules
+    soldBikeValidationRules,
+    paymentUpdateValidationRules
 } from '../middleware/validation';
 import { pdfLimiter, userCreationLimiter } from '../middleware/rateLimiter';
 import {
@@ -18,6 +19,7 @@ import {
   updateBike,
   deleteBike,
   markBikeAsSold,
+    updateBikePayment,
   lookupCustomerByPhone,
 
   // PDF & Reports
@@ -37,28 +39,7 @@ import {
 import { markAnnouncementRead } from '../controllers/superadminController';
 
 const router = Router();
-
-// Debug routes (no auth required) - must be BEFORE middleware
-router.get('/announcements/debug', (req, res) => {
-    res.json({
-        message: 'Announcements debug endpoint working',
-        method: req.method,
-        path: req.path,
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Test route for PATCH method
-router.patch('/announcements/test/:id', (req, res) => {
-    res.json({
-        message: 'PATCH method working',
-        method: req.method,
-        params: req.params,
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Apply middleware to all tenant routes (except debug routes above)
+// Apply middleware to all tenant routes
 router.use(verifyToken, authorizeRole(['ADMIN', 'WORKER', 'SUPERADMIN']), tenantGuard, checkCompanyValidity);
 
 // Dashboard
@@ -72,6 +53,8 @@ router.post('/bikes', validateRequest(bikeValidationRules), addBike);
 router.put('/bikes/:id', updateBike);
 router.delete('/bikes/:id', deleteBike);
 router.patch('/bikes/:id/mark-sold', validateRequest(soldBikeValidationRules), markBikeAsSold);
+router.patch('/bikes/:id/payment', validateRequest(paymentUpdateValidationRules), updateBikePayment);
+router.post('/bikes/:id/payment', validateRequest(paymentUpdateValidationRules), updateBikePayment);
 
 // Customer Management
 router.get('/customers/lookup', lookupCustomerByPhone);

@@ -38,6 +38,17 @@ export interface PasswordReset extends BaseDocument {
   used: boolean;
 }
 
+export type PaymentMode = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';
+export type PaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID';
+
+export interface PaymentEntry {
+  amount: number;
+  mode: PaymentMode;
+  paidAt: string;
+  note?: string;
+  paidById?: string;
+}
+
 // Bike model
 export interface Bike extends BaseDocument {
   name: string;
@@ -50,9 +61,16 @@ export interface Bike extends BaseDocument {
   address?: string;
   soldPrice?: number;
   soldAt?: string;
+  paidAmount?: number;
+  pendingAmount?: number;
+  paymentStatus?: PaymentStatus;
+  paymentMode?: PaymentMode;
+  paymentUpdatedAt?: string;
+  paymentHistory?: PaymentEntry[];
   isSold: boolean;
   companyId: string;
   addedById: string;
+  soldById?: string;
   customerId?: string;
 }
 

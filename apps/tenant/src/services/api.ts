@@ -9,7 +9,6 @@ axios.interceptors.response.use(
     if (axios.isAxiosError(error)) {
       const response = error.response
       if (response?.status === 401 && response.data?.code === 'TOKEN_EXPIRED') {
-        console.log('Token expired detected in API call, clearing authentication')
         // Clear token and redirect to login
         localStorage.removeItem('token')
         localStorage.removeItem('user')
@@ -25,8 +24,15 @@ export interface Bike {
   name: string
   regNo: string
   boughtPrice: number
+  expenditure?: number
   soldPrice?: number
   soldAt?: string
+  paidAmount?: number
+  pendingAmount?: number
+  paymentStatus?: 'PENDING' | 'PARTIAL' | 'PAID'
+  paymentMode?: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER'
+  paymentUpdatedAt?: string
+  soldById?: string
   isSold: boolean
   createdAt: string
   updatedAt: string
@@ -42,6 +48,7 @@ export interface BikeDetails {
   regNo: string
   aadhaarNumber: string
   boughtPrice: number
+  expenditure?: number
   soldPrice?: number
   isSold: boolean
   createdAt: string
@@ -93,6 +100,24 @@ export interface BikeDetails {
     soldDate: string
     soldPrice: number
     profit: number
+    paidAmount?: number
+    pendingAmount?: number
+    paymentStatus?: 'PENDING' | 'PARTIAL' | 'PAID'
+    paymentMode?: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER' | null
+    paymentUpdatedAt?: string | null
+    soldBy?: {
+      id: string
+      email: string
+      role: string
+    } | null
+    paymentHistory?: Array<{
+      amount: number
+      mode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER'
+      paidAt: string
+      note?: string
+      paidById?: string
+      collectedByEmail?: string
+    }>
   } | null
 }
 
@@ -165,7 +190,6 @@ class ApiService {
       const currentTime = Date.now() / 1000
 
       if (payload.exp && payload.exp < currentTime) {
-        console.log('Token expired, clearing authentication')
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         window.location.href = '/login'
@@ -222,14 +246,32 @@ class ApiService {
     return response.data
   }
 
-  async addBike(data: { name: string; regNo: string; boughtPrice: number }): Promise<Bike> {
+  async addBike(data: {
+    name: string
+    regNo: string
+    aadhaarNumber: string
+    boughtPrice: number
+    expenditure?: number
+    rcNo?: string
+    panNumber?: string
+    address?: string
+  }): Promise<Bike> {
     const response = await axios.post(`${API_URL}/api/tenant/bikes`, data, {
       headers: this.safeGetAuthHeaders()
     })
     return response.data
   }
 
-  async updateBike(id: string, data: { name?: string; regNo?: string; boughtPrice?: number }): Promise<Bike> {
+  async updateBike(id: string, data: {
+    name?: string
+    regNo?: string
+    aadhaarNumber?: string
+    boughtPrice?: number
+    expenditure?: number | null
+    rcNo?: string | null
+    panNumber?: string | null
+    address?: string | null
+  }): Promise<Bike> {
     const response = await axios.put(`${API_URL}/api/tenant/bikes/${id}`, data, {
       headers: this.safeGetAuthHeaders()
     })
@@ -242,10 +284,36 @@ class ApiService {
     })
   }
 
-  async markBikeAsSold(id: string, soldPrice: number, customerData?: any): Promise<Bike> {
+  async markBikeAsSold(
+    id: string,
+    soldPrice: number,
+    customerData?: any,
+    paymentData?: {
+      paidAmount: number
+      paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER'
+      note?: string
+    }
+  ): Promise<Bike> {
     const response = await axios.patch(`${API_URL}/api/tenant/bikes/${id}/mark-sold`, {
       soldPrice,
-      customerData
+      customerData,
+      paymentData
+    }, {
+      headers: this.safeGetAuthHeaders()
+    })
+    return response.data
+  }
+
+  async updateBikePayment(
+    id: string,
+    paymentAmount: number,
+    paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER',
+    note?: string
+  ): Promise<Bike> {
+    const response = await axios.patch(`${API_URL}/api/tenant/bikes/${id}/payment`, {
+      paymentAmount,
+      paymentMode,
+      note
     }, {
       headers: this.safeGetAuthHeaders()
     })

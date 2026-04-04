@@ -3,16 +3,6 @@ import { db } from '../lib/db';
 
 const router = Router();
 
-// Debug endpoint - no authentication required
-router.get('/debug', (req, res) => {
-  res.json({
-    status: 'Server is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
-  });
-});
-
 router.get('/companies', async (req, res) => {
   try {
     const companies = await db.findAllCompanies();

@@ -23,6 +23,7 @@ if (!admin.apps.length) {
 
 // Initialize Firestore
 export const firestore = getFirestore();
+firestore.settings({ ignoreUndefinedProperties: true });
 
 // Collection names
 export const COLLECTIONS = {

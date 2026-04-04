@@ -30,8 +30,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-console.log('API_URL:', API_URL) // Debug log
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
@@ -51,9 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Fetch companies for login dropdown
   const fetchCompanies = async () => {
     try {
-      console.log('Fetching companies from:', `${API_URL}/api/auth/companies`)
       const response = await axios.get(`${API_URL}/api/auth/companies`)
-      console.log('Companies response:', response.data)
       setCompanies(response.data.filter((c: Company) => c.isActive))
     } catch (error) {
       console.error('Error fetching companies:', error)
@@ -68,11 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      console.log('Verifying token with:', `${API_URL}/api/auth/profile`)
       const response = await axios.get(`${API_URL}/api/auth/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      console.log('Profile response:', response.data)
       setUser(response.data.user)
       
       // Find and set selected company if both user and companies are available
@@ -88,14 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = error.response
         if (response?.status === 401) {
           // Check if it's specifically a token expiration
-          if (response.data?.code === 'TOKEN_EXPIRED') {
-            console.log('Token expired, clearing authentication and redirecting to login')
-          } else {
-            console.log('Invalid token, clearing authentication and redirecting to login')
-          }
           logout()
         } else if (response?.status === 403) {
-          console.log('Access forbidden, logging out user')
           logout()
         } else if (response?.status && response.status >= 500) {
           console.error('Server error during token verification:', response.status)

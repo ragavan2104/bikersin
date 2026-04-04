@@ -3,6 +3,9 @@ import { db } from '../lib/db';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { forgotPassword, resetPassword } from '../controllers/authController';
+import jwt from 'jsonwebtoken';
+import { config } from '../config/env';
+import { authLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -43,7 +46,7 @@ router.get('/companies', async (req, res) => {
 });
 
 // Simple login endpoint without middleware for testing
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password, companyId } = req.body;
     console.log(`[LOGIN ATTEMPT] Email: ${email}, Company: ${companyId}`);
@@ -71,14 +74,13 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid company for user' });
     }
 
-    const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { 
         userId: user.id, 
         role: user.role, 
         companyId: user.companyId 
       },
-      process.env.JWT_SECRET || 'supersecretkey',
+      config.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
@@ -107,10 +109,8 @@ router.get('/profile', async (req, res) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const jwt = require('jsonwebtoken');
-    
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      const decoded = jwt.verify(token, config.JWT_SECRET) as any;
       
       const user = await db.findUserById(decoded.userId, true);
 
@@ -118,7 +118,8 @@ router.get('/profile', async (req, res) => {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      res.json({ user });
+      const { passwordHash, ...safeUser } = user as any;
+      res.json({ user: safeUser });
     } catch (jwtError: any) {
       // Handle specific JWT errors
       if (jwtError.name === 'TokenExpiredError') {
@@ -136,9 +137,9 @@ router.get('/profile', async (req, res) => {
 });
 
 // Forgot password endpoint
-router.post('/forgot-password', forgotPassword);
+router.post('/forgot-password', authLimiter, forgotPassword);
 
 // Reset password endpoint
-router.post('/reset-password', resetPassword);
+router.post('/reset-password', authLimiter, resetPassword);
 
 export default router;

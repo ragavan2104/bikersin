@@ -89,6 +89,11 @@ export default function LoginPage() {
     setHighlightedIndex(-1);
   };
 
+  const handleCompanyMouseDown = (e: React.MouseEvent, company: Company) => {
+    e.preventDefault();
+    handleCompanySelect(company);
+  };
+
   const handleCompanySearchChange = (value: string) => {
     setCompanySearch(value);
     setShowCompanyDropdown(true);
@@ -211,6 +216,7 @@ export default function LoginPage() {
                   (companySearch ? filteredCompanies : companies).map((company, index) => (
                     <div
                       key={company.id}
+                      onMouseDown={(e) => handleCompanyMouseDown(e, company)}
                       onClick={() => handleCompanySelect(company)}
                       className={`px-3 py-2 cursor-pointer border-b border-gray-100 last:border-b-0 ${
                         index === highlightedIndex 

@@ -7,12 +7,21 @@ interface Bike {
   name: string
   regNo: string
   boughtPrice: number
+  expenditure?: number
 }
 
 interface MarkAsSoldModalProps {
   bike: Bike
   onClose: () => void
-  onSubmit?: (soldPrice: number, customerData?: any) => Promise<void>
+  onSubmit?: (
+    soldPrice: number,
+    customerData?: any,
+    paymentData?: {
+      paidAmount: number
+      paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER'
+      note?: string
+    }
+  ) => Promise<void>
   onSaleComplete?: () => void
   onSold?: () => void
   token?: string
@@ -32,13 +41,28 @@ export default function MarkAsSoldModal({
     aadhaarNumber: '',
     address: ''
   })
+  const [paymentData, setPaymentData] = useState({
+    paidAmount: '',
+    paymentMode: 'CASH' as 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER',
+    note: ''
+  })
+  const [isPaidAmountManuallyEdited, setIsPaidAmountManuallyEdited] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [generateReceipt, setGenerateReceipt] = useState(true)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupMessage, setLookupMessage] = useState('')
 
-  const profit = soldPrice ? parseFloat(soldPrice) - bike.boughtPrice : 0
+  const parseAmount = (value: string) => {
+    const amount = Number(value)
+    return Number.isFinite(amount) ? Math.round(amount) : 0
+  }
+
+  const totalCost = bike.boughtPrice + (bike.expenditure || 0)
+  const parsedSoldPrice = soldPrice ? parseAmount(soldPrice) : 0
+  const parsedPaidAmount = paymentData.paidAmount ? parseAmount(paymentData.paidAmount) : 0
+  const pendingAmount = Math.max(parsedSoldPrice - parsedPaidAmount, 0)
+  const profit = soldPrice ? parseFloat(soldPrice) - totalCost : 0
   const profitMargin = soldPrice ? (profit / parseFloat(soldPrice)) * 100 : 0
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,9 +93,33 @@ export default function MarkAsSoldModal({
       return
     }
 
+    if (!paymentData.paidAmount.trim()) {
+      setError('Paid amount is required')
+      setIsSubmitting(false)
+      return
+    }
+
+    const paidAmount = parseAmount(paymentData.paidAmount)
+    const salePrice = parseAmount(soldPrice)
+    if (isNaN(paidAmount) || paidAmount < 0) {
+      setError('Paid amount must be a valid non-negative number')
+      setIsSubmitting(false)
+      return
+    }
+
+    if (paidAmount > salePrice) {
+      setError('Paid amount cannot be greater than sale price')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       if (onSubmit) {
-        await onSubmit(parseFloat(soldPrice), customerData)
+        await onSubmit(salePrice, customerData, {
+          paidAmount,
+          paymentMode: paymentData.paymentMode,
+          note: paymentData.note.trim() || undefined
+        })
       }
       if (onSaleComplete) {
         onSaleComplete()
@@ -100,7 +148,7 @@ export default function MarkAsSoldModal({
 
   const generatePDFReceipt = async () => {
     try {
-      const blob = await apiService.generateReceipt(bike.id, parseFloat(soldPrice))
+      const blob = await apiService.generateReceipt(bike.id, parseAmount(soldPrice))
 
       // Create download link
       const url = window.URL.createObjectURL(blob)
@@ -213,17 +261,30 @@ export default function MarkAsSoldModal({
                       type="number"
                       id="soldPrice"
                       required
-                      min={bike.boughtPrice}
-                      step="0.01"
+                      min="0"
+                      step="1"
                       value={soldPrice}
-                      onChange={(e) => setSoldPrice(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setSoldPrice(value)
+                        if (!isPaidAmountManuallyEdited) {
+                          setPaymentData(prev => ({ ...prev, paidAmount: value }))
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!e.target.value) return
+                        const rounded = parseAmount(e.target.value).toString()
+                        setSoldPrice(rounded)
+                        if (!isPaidAmountManuallyEdited) {
+                          setPaymentData(prev => ({ ...prev, paidAmount: rounded }))
+                        }
+                      }}
+                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className="block w-full pl-10 pr-12 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       placeholder="0.00"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Minimum sale price: ₹{bike.boughtPrice.toLocaleString()}
-                  </p>
+                  <p className="mt-1 text-xs text-gray-500">Loss sales are allowed and tracked in analytics.</p>
                 </div>
 
                 {/* Customer Details Section */}
@@ -304,10 +365,87 @@ export default function MarkAsSoldModal({
                   </div>
                 </div>
 
-                {/* Profit Calculation */}
+                {/* Profit/Loss Calculation */}
+                <div className="border-t pt-4 mt-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Payment Details</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label htmlFor="paidAmount" className="block text-sm font-medium text-gray-700">
+                        Paid Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        id="paidAmount"
+                        required
+                        min="0"
+                        step="1"
+                        value={paymentData.paidAmount}
+                        onChange={(e) => {
+                          setIsPaidAmountManuallyEdited(true)
+                          setPaymentData(prev => ({ ...prev, paidAmount: e.target.value }))
+                        }}
+                        onBlur={(e) => {
+                          if (!e.target.value) return
+                          setPaymentData(prev => ({ ...prev, paidAmount: parseAmount(e.target.value).toString() }))
+                        }}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="paymentMode" className="block text-sm font-medium text-gray-700">
+                        Payment Mode
+                      </label>
+                      <select
+                        id="paymentMode"
+                        value={paymentData.paymentMode}
+                        onChange={(e) => setPaymentData(prev => ({
+                          ...prev,
+                          paymentMode: e.target.value as 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER'
+                        }))}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="CARD">Card</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="paymentNote" className="block text-sm font-medium text-gray-700">
+                        Payment Note (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        id="paymentNote"
+                        value={paymentData.note}
+                        onChange={(e) => setPaymentData(prev => ({ ...prev, note: e.target.value }))}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Advance payment, part payment, etc."
+                      />
+                    </div>
+
+                    {soldPrice && paymentData.paidAmount && (
+                      <div className="rounded-md bg-yellow-50 border border-yellow-200 p-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-yellow-700">Pending Amount:</span>
+                          <span className={`font-semibold ${pendingAmount > 0 ? 'text-red-600' : 'text-green-700'}`}>
+                            ₹{pendingAmount.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Profit/Loss Calculation */}
                 {soldPrice && (
                   <div className="bg-green-50 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-green-800 mb-2">Profit Calculation</h4>
+                    <h4 className="text-sm font-medium text-green-800 mb-2">Profit/Loss Calculation</h4>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span className="text-green-700">Sale Price:</span>
@@ -317,17 +455,31 @@ export default function MarkAsSoldModal({
                         <span className="text-green-700">Bought Price:</span>
                         <span className="font-medium text-green-900">₹{bike.boughtPrice.toLocaleString()}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Expenditure:</span>
+                        <span className="font-medium text-green-900">₹{(bike.expenditure || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Total Cost:</span>
+                        <span className="font-medium text-green-900">₹{totalCost.toLocaleString()}</span>
+                      </div>
                       <div className="border-t border-green-200 pt-1 mt-1">
                         <div className="flex justify-between">
-                          <span className="text-green-700">Profit:</span>
+                          <span className="text-green-700">{profit >= 0 ? 'Profit:' : 'Loss:'}</span>
                           <span className={`font-medium ${profit >= 0 ? 'text-green-900' : 'text-red-600'}`}>
-                            ₹{profit.toLocaleString()}
+                            ₹{Math.abs(profit).toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-green-700">Profit Margin:</span>
+                          <span className="text-green-700">Margin:</span>
                           <span className={`font-medium ${profitMargin >= 0 ? 'text-green-900' : 'text-red-600'}`}>
                             {profitMargin.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Pending Payment:</span>
+                          <span className={`font-medium ${pendingAmount > 0 ? 'text-red-600' : 'text-green-900'}`}>
+                            ₹{pendingAmount.toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -355,7 +507,7 @@ export default function MarkAsSoldModal({
                 <div className="mt-6 sm:flex sm:flex-row-reverse">
                   <button
                     type="submit"
-                    disabled={isSubmitting || !soldPrice || parseFloat(soldPrice) < bike.boughtPrice}
+                    disabled={isSubmitting || !soldPrice}
                     className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (

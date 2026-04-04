@@ -21,8 +21,6 @@ export default function HealthDashboard() {
   const fetchMetrics = async () => {
     try {
       setError(null);
-      console.log('Token:', token ? 'Present' : 'Missing');
-      console.log('Making request to:', `${API_URL}/api/superadmin/health`);
       
       const res = await fetch(`${API_URL}/api/superadmin/health`, {
         headers: { 
@@ -30,10 +28,8 @@ export default function HealthDashboard() {
           'Content-Type': 'application/json'
         }
       });
-      
-      console.log('Response status:', res.status);
+
       const data = await res.json();
-      console.log('Response data:', data);
       
       if (res.ok) {
         setMetrics(data);

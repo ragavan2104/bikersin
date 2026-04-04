@@ -48,7 +48,6 @@ export default function Dashboard() {
     // Mark as read on server using API service
     try {
       await apiService.markAnnouncementAsRead(announcementId)
-      console.log('Announcement marked as read successfully')
     } catch (err: any) {
       console.error('Failed to mark announcement as read:', err)
       // Show error in UI but don't revert the dismissal since it's stored locally

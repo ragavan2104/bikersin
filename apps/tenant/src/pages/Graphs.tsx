@@ -115,6 +115,24 @@ export default function Graphs() {
         ]
     }, [analyticsData.summary])
 
+    const lossStats = useMemo(() => {
+        if (!chartData.length || filterType !== 'SOLD') {
+            return { totalLoss: 0, lossPeriods: 0, worstPeriodLoss: 0 }
+        }
+
+        const lossPeriods = chartData.filter((item: any) => (item?.Profit || 0) < 0)
+        const totalLoss = lossPeriods.reduce((sum: number, item: any) => sum + Math.abs(item.Profit || 0), 0)
+        const worstPeriodLoss = lossPeriods.reduce((min: number, item: any) => {
+            return Math.min(min, item.Profit || 0)
+        }, 0)
+
+        return {
+            totalLoss,
+            lossPeriods: lossPeriods.length,
+            worstPeriodLoss: Math.abs(worstPeriodLoss)
+        }
+    }, [chartData, filterType])
+
     const formatCurrency = (value: number) => new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
@@ -281,6 +299,12 @@ export default function Graphs() {
                         icon={TrendingUp}
                         color="yellow"
                     />
+                    <KPICard 
+                        title="Total Loss"
+                        value={formatCurrency(analyticsData.summary.totalLoss || 0)}
+                        icon={TrendingDown}
+                        color="red"
+                    />
                 </div>
             )}
 
@@ -402,12 +426,13 @@ export default function Graphs() {
                                             <>
                                                 <Bar yAxisId="left" dataKey="Revenue" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Revenue" />
                                                 <Bar yAxisId="left" dataKey="Profit" fill="#10B981" radius={[4, 4, 0, 0]} name="Profit" />
+                                                <Bar yAxisId="left" dataKey="Loss" fill="#EF4444" radius={[4, 4, 0, 0]} name="Loss" />
                                                 <Line yAxisId="right" type="monotone" dataKey="Profit Margin" stroke="#F59E0B" strokeWidth={3} name="Profit Margin %" />
                                             </>
                                         )}
                                         {filterType === 'ALL' && (
                                             <>
-                                                <Bar yAxisId="left" dataKey="Bought Price" fill="#8B5CF6" radius={[4, 4, 0, 0]} name="Purchase Amount" />
+                                                <Bar yAxisId="left" dataKey="Total Cost" fill="#8B5CF6" radius={[4, 4, 0, 0]} name="Total Cost" />
                                                 <Line yAxisId="right" type="monotone" dataKey="Count" stroke="#EF4444" strokeWidth={3} name="Quantity" />
                                             </>
                                         )}
@@ -498,7 +523,7 @@ export default function Graphs() {
                                                 <p className="text-xs text-gray-500">{bike.regNo}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-medium text-sm text-green-600">
+                                                <p className={`font-medium text-sm ${bike.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {formatCurrency(bike.profit)}
                                                 </p>
                                                 <p className="text-xs text-gray-500">
@@ -543,8 +568,47 @@ export default function Graphs() {
                                         }
                                     </span>
                                 </div>
+                                <div className="flex justify-between">
+                                    <span className="text-sm text-gray-600">Loss-Making Sales:</span>
+                                    <span className="text-sm font-medium text-red-600">
+                                        {analyticsData.summary?.lossMakingSales || 0}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-sm text-gray-600">Loss Ratio:</span>
+                                    <span className="text-sm font-medium text-red-600">
+                                        {analyticsData.summary?.totalRevenue > 0
+                                            ? `${(((analyticsData.summary.totalLoss || 0) / analyticsData.summary.totalRevenue) * 100).toFixed(2)}%`
+                                            : '0%'
+                                        }
+                                    </span>
+                                </div>
                             </div>
                         </div>
+
+                        {filterType === 'SOLD' && (
+                            <div className="bg-white shadow rounded-lg p-6">
+                                <h3 className="text-lg font-medium text-gray-900 mb-6">Loss Statistics</h3>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Total Loss (Filtered):</span>
+                                        <span className="text-sm font-medium text-red-600">
+                                            {formatCurrency(lossStats.totalLoss)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Loss Periods:</span>
+                                        <span className="text-sm font-medium text-red-600">{lossStats.lossPeriods}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Worst Period Loss:</span>
+                                        <span className="text-sm font-medium text-red-600">
+                                            {formatCurrency(lossStats.worstPeriodLoss)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

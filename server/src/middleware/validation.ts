@@ -116,6 +116,11 @@ export const soldBikeValidationRules: ValidationRule[] = [
   { field: 'soldPrice', required: true, type: 'number', min: 0 }
 ];
 
+export const paymentUpdateValidationRules: ValidationRule[] = [
+  { field: 'paymentAmount', required: true, type: 'number', min: 0.01 },
+  { field: 'paymentMode', required: true, type: 'string', enum: ['CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'OTHER'] }
+];
+
 export const loginValidationRules: ValidationRule[] = [
   { field: 'email', required: true, type: 'email' },
   { field: 'password', required: true, type: 'string', minLength: 1 },

@@ -5,6 +5,19 @@ import PDFDocument from 'pdfkit'
 import bcrypt from 'bcrypt'
 import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler'
 
+const getBikeTotalCost = (bike: { boughtPrice?: number; expenditure?: number }) => {
+  return (bike.boughtPrice || 0) + (bike.expenditure || 0)
+}
+
+const PAYMENT_MODES = ['CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'OTHER'] as const
+type PaymentMode = typeof PAYMENT_MODES[number]
+
+const getPaymentStatus = (paidAmount: number, soldPrice: number) => {
+  if (paidAmount <= 0) return 'PENDING'
+  if (paidAmount >= soldPrice) return 'PAID'
+  return 'PARTIAL'
+}
+
 // Dashboard Data
 export const getDashboardData = async (req: AuthRequest, res: Response) => {
   try {
@@ -27,7 +40,7 @@ export const getDashboardData = async (req: AuthRequest, res: Response) => {
       .reduce((sum, bike) => sum + (bike.soldPrice || 0), 0);
     const totalCost = bikes
       .filter(bike => bike.isSold && bike.boughtPrice)
-      .reduce((sum, bike) => sum + (bike.boughtPrice || 0), 0);
+      .reduce((sum, bike) => sum + getBikeTotalCost(bike), 0);
     const totalProfit = totalRevenue - totalCost;
 
     const recentSales = bikes
@@ -93,8 +106,38 @@ export const getBikes = async (req: AuthRequest, res: Response) => {
     if (!companyId) return res.status(400).json({ error: 'Company ID required' })
 
     const bikes = await db.findBikesByCompany(companyId)
+    const bikesWithPaymentState = bikes.map((bike: any) => {
+      if (!bike.isSold) return bike
 
-    res.json(bikes)
+      const soldPrice = bike.soldPrice || 0
+      const rawStatus = bike.paymentStatus
+      const status = rawStatus === 'PENDING' || rawStatus === 'PARTIAL' || rawStatus === 'PAID' ? rawStatus : undefined
+
+      let pendingAmount: number
+      if (typeof bike.pendingAmount === 'number') {
+        pendingAmount = bike.pendingAmount
+      } else if (typeof bike.paidAmount === 'number') {
+        pendingAmount = Math.max(soldPrice - bike.paidAmount, 0)
+      } else if (status === 'PENDING') {
+        pendingAmount = soldPrice
+      } else if (status === 'PAID') {
+        pendingAmount = 0
+      } else {
+        pendingAmount = 0
+      }
+
+      const paidAmount = typeof bike.paidAmount === 'number' ? bike.paidAmount : Math.max(soldPrice - pendingAmount, 0)
+
+      return {
+        ...bike,
+        paidAmount,
+        pendingAmount,
+        paymentStatus: status || getPaymentStatus(paidAmount, soldPrice),
+        paymentMode: bike.paymentMode || 'OTHER'
+      }
+    })
+
+    res.json(bikesWithPaymentState)
   } catch (error) {
     console.error('Get bikes error:', error)
     res.status(500).json({ error: 'Failed to fetch bikes' })
@@ -118,11 +161,21 @@ export const getBikeDetails = async (req: AuthRequest, res: Response) => {
     }
 
     // Fetch related data
-    const [addedBy, customer, company] = await Promise.all([
+    const [addedBy, soldBy, customer, company] = await Promise.all([
       db.findUserById(bike.addedById),
+      bike.soldById ? db.findUserById(bike.soldById) : null,
       bike.customerId ? db.findCustomerById(bike.customerId) : null,
       db.findCompanyById(bike.companyId)
     ]);
+
+    const collectorIds = Array.from(new Set((bike.paymentHistory || []).map(entry => entry.paidById).filter(Boolean))) as string[]
+    const collectorUsers = await Promise.all(collectorIds.map(userId => db.findUserById(userId)))
+    const collectorMap = new Map<string, string>()
+    collectorUsers.forEach(user => {
+      if (user) {
+        collectorMap.set(user.id, user.email)
+      }
+    })
 
     // Add additional information
     const bikeDetails = {
@@ -173,7 +226,21 @@ export const getBikeDetails = async (req: AuthRequest, res: Response) => {
         } : undefined,
         soldDate: bike.updatedAt,
         soldPrice: bike.soldPrice,
-        profit: bike.soldPrice ? bike.soldPrice - bike.boughtPrice : 0
+        profit: bike.soldPrice ? bike.soldPrice - getBikeTotalCost(bike) : 0,
+        paidAmount: bike.paidAmount || 0,
+        pendingAmount: bike.pendingAmount || 0,
+        paymentStatus: bike.paymentStatus || 'PENDING',
+        paymentMode: bike.paymentMode || null,
+        paymentUpdatedAt: bike.paymentUpdatedAt || null,
+        soldBy: soldBy ? {
+          id: soldBy.id,
+          email: soldBy.email,
+          role: soldBy.role
+        } : null,
+        paymentHistory: (bike.paymentHistory || []).map(entry => ({
+          ...entry,
+          collectedByEmail: entry.paidById ? (collectorMap.get(entry.paidById) || 'Unknown') : 'Unknown'
+        }))
       } : null
     }
 
@@ -385,7 +452,7 @@ export const deleteBike = async (req: AuthRequest, res: Response) => {
 export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params
-    const { soldPrice, customerData } = req.body
+    const { soldPrice, customerData, paymentData } = req.body
     const companyId = req.user?.companyId
 
     console.log('Mark bike as sold request:', { id, soldPrice, customerData, companyId })
@@ -396,6 +463,11 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
 
     if (!soldPrice || soldPrice <= 0) {
       return res.status(400).json({ error: 'Valid sold price is required' })
+    }
+
+    const parsedSoldPrice = Math.round(Number(soldPrice))
+    if (isNaN(parsedSoldPrice) || parsedSoldPrice <= 0) {
+      return res.status(400).json({ error: 'Sold price must be a valid positive number' })
     }
 
     // Validate customer data
@@ -469,11 +541,45 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
       return res.status(500).json({ error: 'Failed to create/update customer' });
     }
 
+    const rawPaidAmount = paymentData?.paidAmount ?? parsedSoldPrice
+    const paidAmount = Math.round(Number(rawPaidAmount))
+    if (isNaN(paidAmount) || paidAmount < 0) {
+      return res.status(400).json({ error: 'Paid amount must be a valid non-negative number' })
+    }
+    if (paidAmount > parsedSoldPrice) {
+      return res.status(400).json({ error: 'Paid amount cannot be greater than sale price' })
+    }
+
+    const paymentModeCandidate = (paymentData?.paymentMode || 'OTHER').toString().toUpperCase()
+    if (!PAYMENT_MODES.includes(paymentModeCandidate as PaymentMode)) {
+      return res.status(400).json({ error: 'Invalid payment mode' })
+    }
+    const paymentModeInput = paymentModeCandidate as PaymentMode
+
+    const pendingAmount = parsedSoldPrice - paidAmount
+    const paymentStatus = getPaymentStatus(paidAmount, parsedSoldPrice)
+    const paymentHistory = paidAmount > 0 ? [
+      {
+        amount: paidAmount,
+        mode: paymentModeInput,
+        paidAt: new Date().toISOString(),
+        note: paymentData?.note ? String(paymentData.note).trim() : 'Initial payment at sale',
+        paidById: req.user?.userId
+      }
+    ] : []
+
     const updatedBike = await db.updateBike(id, {
       isSold: true,
-      soldPrice: parseFloat(soldPrice),
+      soldPrice: parsedSoldPrice,
       soldAt: new Date().toISOString(),
-      customerId: customer.id
+      customerId: customer.id,
+      soldById: req.user?.userId,
+      paidAmount,
+      pendingAmount,
+      paymentStatus,
+      paymentMode: paymentModeInput,
+      paymentUpdatedAt: new Date().toISOString(),
+      paymentHistory
     });
 
     if (!updatedBike) {
@@ -498,6 +604,89 @@ export const markBikeAsSold = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Mark bike as sold error:', error)
     res.status(500).json({ error: 'Failed to mark bike as sold' })
+  }
+}
+
+export const updateBikePayment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const { paymentAmount, paymentMode, note } = req.body
+    const companyId = req.user?.companyId
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Company ID required' })
+    }
+
+    const bike = await db.findBikeByIdAndCompany(id, companyId)
+    if (!bike || !bike.isSold) {
+      return res.status(404).json({ error: 'Sold bike not found' })
+    }
+
+    const soldPrice = bike.soldPrice || 0
+    if (soldPrice <= 0) {
+      return res.status(400).json({ error: 'Bike has invalid sale price' })
+    }
+
+    const parsedPaymentAmount = Math.round(Number(paymentAmount))
+    if (isNaN(parsedPaymentAmount) || parsedPaymentAmount <= 0) {
+      return res.status(400).json({ error: 'Payment amount must be greater than zero' })
+    }
+
+    const normalizedPaymentModeCandidate = String(paymentMode || '').toUpperCase()
+    if (!PAYMENT_MODES.includes(normalizedPaymentModeCandidate as PaymentMode)) {
+      return res.status(400).json({ error: 'Invalid payment mode' })
+    }
+    const normalizedPaymentMode = normalizedPaymentModeCandidate as PaymentMode
+
+    const currentPaidAmount = bike.paidAmount || 0
+    const currentPendingAmount = Math.max((bike.pendingAmount ?? (soldPrice - currentPaidAmount)), 0)
+
+    if (currentPendingAmount <= 0) {
+      return res.status(400).json({ error: 'This bike is already fully paid' })
+    }
+
+    if (parsedPaymentAmount > currentPendingAmount) {
+      return res.status(400).json({ error: `Payment amount cannot exceed pending amount of ₹${currentPendingAmount.toLocaleString()}` })
+    }
+
+    const updatedPaidAmount = currentPaidAmount + parsedPaymentAmount
+    const updatedPendingAmount = soldPrice - updatedPaidAmount
+    const paymentStatus = getPaymentStatus(updatedPaidAmount, soldPrice)
+
+    const paymentHistory: Array<{
+      amount: number
+      mode: PaymentMode
+      paidAt: string
+      note?: string
+      paidById?: string
+    }> = [
+      ...(bike.paymentHistory || []),
+      {
+        amount: parsedPaymentAmount,
+        mode: normalizedPaymentMode,
+        paidAt: new Date().toISOString(),
+        note: note ? String(note).trim() : undefined,
+        paidById: req.user?.userId
+      }
+    ]
+
+    const updatedBike = await db.updateBike(id, {
+      paidAmount: updatedPaidAmount,
+      pendingAmount: updatedPendingAmount,
+      paymentStatus,
+      paymentMode: normalizedPaymentMode,
+      paymentUpdatedAt: new Date().toISOString(),
+      paymentHistory
+    })
+
+    if (!updatedBike) {
+      return res.status(500).json({ error: 'Failed to update bike payment' })
+    }
+
+    res.json(updatedBike)
+  } catch (error) {
+    console.error('Update bike payment error:', error)
+    res.status(500).json({ error: 'Failed to update bike payment' })
   }
 }
 
@@ -618,14 +807,14 @@ export const getSalesData = async (req: AuthRequest, res: Response) => {
 
     const totalSales = sales.length
     const totalRevenue = sales.reduce((sum, sale) => sum + (sale.soldPrice || 0), 0)
-    const totalCost = sales.reduce((sum, sale) => sum + sale.boughtPrice, 0)
+    const totalCost = sales.reduce((sum, sale) => sum + getBikeTotalCost(sale), 0)
     const totalProfit = totalRevenue - totalCost
     const averageProfit = totalSales > 0 ? totalProfit / totalSales : 0
     const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
 
     const salesWithProfit = sales.map(sale => ({
       ...sale,
-      profit: (sale.soldPrice || 0) - sale.boughtPrice,
+      profit: (sale.soldPrice || 0) - getBikeTotalCost(sale),
       soldAt: sale.updatedAt
     }))
 
@@ -752,7 +941,7 @@ export const getCompanyStats = async (req: AuthRequest, res: Response) => {
     const totalBikes = bikes.length;
     const soldBikes = bikes.filter((b: any) => b.isSold).length;
     const totalRevenue = bikes.filter((b: any) => b.isSold && b.soldPrice).reduce((sum: number, b: any) => sum + (b.soldPrice || 0), 0);
-    const totalCost = bikes.filter((b: any) => b.isSold && b.boughtPrice).reduce((sum: number, b: any) => sum + b.boughtPrice, 0);
+    const totalCost = bikes.filter((b: any) => b.isSold && b.boughtPrice).reduce((sum: number, b: any) => sum + getBikeTotalCost(b), 0);
     const totalProfit = totalRevenue - totalCost;
 
     res.json({
@@ -782,7 +971,7 @@ export const getProfitReport = async (req: AuthRequest, res: Response) => {
     const soldBikes = bikes.filter(bike => bike.isSold);
 
     const profit = soldBikes.reduce((acc, bike) => {
-      return acc + ((bike.soldPrice || 0) - bike.boughtPrice);
+      return acc + ((bike.soldPrice || 0) - getBikeTotalCost(bike));
     }, 0);
 
     res.json({ totalProfit: profit, count: soldBikes.length });
@@ -805,10 +994,15 @@ export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
     const soldBikes = bikes.filter(bike => bike.isSold);
     const availableBikes = bikes.filter(bike => !bike.isSold);
     const totalRevenue = soldBikes.reduce((sum, bike) => sum + (bike.soldPrice || 0), 0);
-    const totalCost = soldBikes.reduce((sum, bike) => sum + (bike.boughtPrice || 0), 0);
+    const totalCost = soldBikes.reduce((sum, bike) => sum + getBikeTotalCost(bike), 0);
     const totalProfit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
     const avgProfitPerBike = soldBikes.length > 0 ? totalProfit / soldBikes.length : 0;
+    const lossMakingSales = soldBikes.filter(bike => (bike.soldPrice || 0) < getBikeTotalCost(bike)).length;
+    const totalLoss = soldBikes.reduce((sum, bike) => {
+      const loss = getBikeTotalCost(bike) - (bike.soldPrice || 0);
+      return loss > 0 ? sum + loss : sum;
+    }, 0);
 
     // Function to get date key based on groupBy parameter
     const getDateKey = (date: Date, groupBy: string) => {
@@ -841,12 +1035,16 @@ export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
             dateValue: cDate.getTime(), 
             Count: 0, 
             'Bought Price': 0,
+            Expenditure: 0,
+            'Total Cost': 0,
             'Avg Price': 0
           };
         }
         inventoryGroups[cKey].Count += 1;
         inventoryGroups[cKey]['Bought Price'] += (b.boughtPrice || 0);
-        inventoryGroups[cKey]['Avg Price'] = inventoryGroups[cKey]['Bought Price'] / inventoryGroups[cKey].Count;
+        inventoryGroups[cKey].Expenditure += (b.expenditure || 0);
+        inventoryGroups[cKey]['Total Cost'] += getBikeTotalCost(b);
+        inventoryGroups[cKey]['Avg Price'] = inventoryGroups[cKey]['Total Cost'] / inventoryGroups[cKey].Count;
       }
 
       // Sales tracking (by soldAt or updatedAt)
@@ -862,16 +1060,27 @@ export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
               Revenue: 0, 
               Profit: 0, 
               'Bought Price': 0,
+              Expenditure: 0,
+              'Total Cost': 0,
+              Loss: 0,
+              'Loss Count': 0,
               'Profit Margin': 0,
               'Avg Revenue': 0,
               'Avg Profit': 0
             };
           }
-          const profit = (b.soldPrice - (b.boughtPrice || 0));
+          const bikeCost = getBikeTotalCost(b);
+          const profit = (b.soldPrice - bikeCost);
           salesGroups[sKey].Count += 1;
           salesGroups[sKey].Revenue += b.soldPrice;
           salesGroups[sKey]['Bought Price'] += (b.boughtPrice || 0);
+          salesGroups[sKey].Expenditure += (b.expenditure || 0);
+          salesGroups[sKey]['Total Cost'] += bikeCost;
           salesGroups[sKey].Profit += profit;
+          if (profit < 0) {
+            salesGroups[sKey].Loss += Math.abs(profit);
+            salesGroups[sKey]['Loss Count'] += 1;
+          }
           salesGroups[sKey]['Avg Revenue'] = salesGroups[sKey].Revenue / salesGroups[sKey].Count;
           salesGroups[sKey]['Avg Profit'] = salesGroups[sKey].Profit / salesGroups[sKey].Count;
           salesGroups[sKey]['Profit Margin'] = salesGroups[sKey].Revenue > 0 ? 
@@ -889,7 +1098,7 @@ export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
         monthlyStats[monthKey] = { revenue: 0, profit: 0, count: 0, avgProfit: 0 };
       }
       monthlyStats[monthKey].revenue += bike.soldPrice || 0;
-      monthlyStats[monthKey].profit += (bike.soldPrice || 0) - (bike.boughtPrice || 0);
+      monthlyStats[monthKey].profit += (bike.soldPrice || 0) - getBikeTotalCost(bike);
       monthlyStats[monthKey].count += 1;
       monthlyStats[monthKey].avgProfit = monthlyStats[monthKey].profit / monthlyStats[monthKey].count;
     });
@@ -906,8 +1115,8 @@ export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
       .map(bike => ({
         name: bike.name,
         regNo: bike.regNo,
-        profit: (bike.soldPrice || 0) - (bike.boughtPrice || 0),
-        profitMargin: bike.soldPrice ? (((bike.soldPrice - (bike.boughtPrice || 0)) / bike.soldPrice) * 100) : 0
+        profit: (bike.soldPrice || 0) - getBikeTotalCost(bike),
+        profitMargin: bike.soldPrice ? ((((bike.soldPrice || 0) - getBikeTotalCost(bike)) / bike.soldPrice) * 100) : 0
       }))
       .sort((a, b) => b.profit - a.profit)
       .slice(0, 10);
@@ -925,7 +1134,9 @@ export const getBikeAnalytics = async (req: AuthRequest, res: Response) => {
         totalProfit,
         profitMargin: Math.round(profitMargin * 100) / 100,
         avgProfitPerBike: Math.round(avgProfitPerBike * 100) / 100,
-        totalCost
+        totalCost,
+        totalLoss,
+        lossMakingSales
       }
     });
   } catch (error) {

@@ -200,6 +200,14 @@ export default function BikeDetailsModal({ bikeId, onClose }: BikeDetailsModalPr
                         <span className="text-sm font-medium">{formatDate(details.saleInfo.soldDate)}</span>
                       </div>
                       <div className="flex items-center">
+                        <User className="h-4 w-4 text-gray-400 mr-2" />
+                        <span className="text-sm text-gray-600">Sold by: </span>
+                        <span className="text-sm font-medium">{details.saleInfo.soldBy?.email || 'Unknown'}</span>
+                        <span className="text-xs text-gray-500 ml-2 capitalize">
+                          ({details.saleInfo.soldBy?.role?.toLowerCase() || 'unknown'})
+                        </span>
+                      </div>
+                      <div className="flex items-center">
                         <IndianRupee className="h-4 w-4 text-gray-400 mr-2" />
                         <span className="text-sm text-gray-600">Profit: </span>
                         <span className={`text-lg font-bold ${details.saleInfo.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -228,6 +236,25 @@ export default function BikeDetailsModal({ bikeId, onClose }: BikeDetailsModalPr
                         </div>
                       </div>
                     </div>
+                    {/* Payment Collection History */}
+                    {details.saleInfo.paymentHistory && details.saleInfo.paymentHistory.length > 0 && (
+                      <div className="mt-4 p-3 bg-white rounded border">
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Payment History</h5>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {details.saleInfo.paymentHistory.map((entry, index) => (
+                            <div key={`${entry.paidAt}-${index}`} className="text-xs border border-gray-100 rounded p-2">
+                              <div className="flex justify-between">
+                                <span className="font-semibold text-gray-800">₹{entry.amount.toLocaleString()}</span>
+                                <span className="text-gray-600">{entry.mode.replace('_', ' ')}</span>
+                              </div>
+                              <div className="text-gray-600 mt-1">Collected by: {entry.collectedByEmail || 'Unknown'}</div>
+                              <div className="text-gray-500">{new Date(entry.paidAt).toLocaleString('en-IN')}</div>
+                              {entry.note && <div className="text-gray-600 italic">{entry.note}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -252,7 +252,7 @@ class FirestoreService {
     const soldBikes = bikes.filter(bike => bike.isSold);
     
     const totalRevenue = soldBikes.reduce((sum, bike) => sum + (bike.soldPrice || 0), 0);
-    const totalCost = soldBikes.reduce((sum, bike) => sum + bike.boughtPrice, 0);
+    const totalCost = soldBikes.reduce((sum, bike) => sum + (bike.boughtPrice || 0) + (bike.expenditure || 0), 0);
     const totalProfit = totalRevenue - totalCost;
 
     return {

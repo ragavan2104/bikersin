@@ -17,8 +17,9 @@ import AddBikeModal from '../components/AddBikeModal'
 import EditBikeModal from '../components/EditBikeModal'
 import MarkAsSoldModal from '../components/MarkAsSoldModal'
 import BikeDetailsModal from '../components/BikeDetailsModal'
+import UpdatePaymentModal from '../components/UpdatePaymentModal'
 
-type FilterType = 'all' | 'available' | 'sold'
+type FilterType = 'all' | 'available' | 'sold' | 'pending-payment'
 
 export default function Inventory() {
   const { } = useAuth()
@@ -31,6 +32,7 @@ export default function Inventory() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingBike, setEditingBike] = useState<Bike | null>(null)
   const [sellingBike, setSellingBike] = useState<Bike | null>(null)
+  const [updatingPaymentBike, setUpdatingPaymentBike] = useState<Bike | null>(null)
   const [selectedBikeForDetails, setSelectedBikeForDetails] = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
@@ -40,6 +42,48 @@ export default function Inventory() {
   useEffect(() => {
     filterBikes()
   }, [bikes, searchTerm, filterType])
+
+  const getPendingAmount = (bike: Bike) => {
+    if (!bike.isSold) return 0
+    if (typeof bike.pendingAmount === 'number' && Number.isFinite(bike.pendingAmount)) {
+      return Math.max(bike.pendingAmount, 0)
+    }
+    const soldPrice = Number(bike.soldPrice || 0)
+    if (typeof bike.paidAmount === 'number') {
+      return Math.max(soldPrice - bike.paidAmount, 0)
+    }
+    if (bike.paymentStatus === 'PENDING') {
+      return soldPrice
+    }
+    if (bike.paymentStatus === 'PAID') {
+      return 0
+    }
+    const paidAmount = typeof bike.paidAmount === 'number' ? bike.paidAmount : soldPrice
+    return Math.max(soldPrice - paidAmount, 0)
+  }
+
+  const hasPendingPayment = (bike: Bike) => {
+    if (!bike.isSold) return false
+
+    if (bike.paymentStatus === 'PENDING' || bike.paymentStatus === 'PARTIAL') {
+      return true
+    }
+
+    const soldPrice = Number(bike.soldPrice || 0)
+    const paidAmount = Number(bike.paidAmount ?? 0)
+    const pendingAmount = getPendingAmount(bike)
+
+    return pendingAmount > 0 || (Number.isFinite(soldPrice) && Number.isFinite(paidAmount) && soldPrice > paidAmount)
+  }
+
+  const getPaymentStatus = (bike: Bike) => {
+    if (!bike.isSold) return 'PENDING'
+    if (bike.paymentStatus) return bike.paymentStatus
+    const pendingAmount = getPendingAmount(bike)
+    if (pendingAmount <= 0) return 'PAID'
+    const paidAmount = bike.paidAmount || 0
+    return paidAmount > 0 ? 'PARTIAL' : 'PENDING'
+  }
 
   const fetchBikes = async () => {
     try {
@@ -72,13 +116,25 @@ export default function Inventory() {
       case 'sold':
         filtered = filtered.filter(bike => bike.isSold)
         break
+      case 'pending-payment':
+        filtered = filtered.filter(bike => hasPendingPayment(bike))
+        break
       // 'all' shows everything
     }
 
     setFilteredBikes(filtered)
   }
 
-  const handleAddBike = async (bikeData: { name: string; regNo: string; boughtPrice: number }) => {
+  const handleAddBike = async (bikeData: {
+    name: string
+    regNo: string
+    aadhaarNumber: string
+    boughtPrice: number
+    expenditure?: number
+    rcNo?: string
+    panNumber?: string
+    address?: string
+  }) => {
     try {
       await apiService.addBike(bikeData)
       await fetchBikes()
@@ -88,7 +144,16 @@ export default function Inventory() {
     }
   }
 
-  const handleEditBike = async (bikeData: { name?: string; regNo?: string; boughtPrice?: number }) => {
+  const handleEditBike = async (bikeData: {
+    name?: string
+    regNo?: string
+    aadhaarNumber?: string
+    boughtPrice?: number
+    expenditure?: number | null
+    rcNo?: string | null
+    panNumber?: string | null
+    address?: string | null
+  }) => {
     try {
       if (!editingBike) return
       await apiService.updateBike(editingBike.id, bikeData)
@@ -99,14 +164,37 @@ export default function Inventory() {
     }
   }
 
-  const handleMarkAsSold = async (soldPrice: number, customerData: any) => {
+  const handleMarkAsSold = async (
+    soldPrice: number,
+    customerData: any,
+    paymentData?: {
+      paidAmount: number
+      paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER'
+      note?: string
+    }
+  ) => {
     try {
       if (!sellingBike) return
-      await apiService.markBikeAsSold(sellingBike.id, soldPrice, customerData)
+      await apiService.markBikeAsSold(sellingBike.id, soldPrice, customerData, paymentData)
       await fetchBikes()
       setSellingBike(null)
     } catch (err: any) {
       throw new Error(err.response?.data?.error || 'Failed to mark bike as sold')
+    }
+  }
+
+  const handleUpdatePayment = async (
+    paymentAmount: number,
+    paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER',
+    note?: string
+  ) => {
+    try {
+      if (!updatingPaymentBike) return
+      await apiService.updateBikePayment(updatingPaymentBike.id, paymentAmount, paymentMode, note)
+      await fetchBikes()
+      setUpdatingPaymentBike(null)
+    } catch (err: any) {
+      throw new Error(err.response?.data?.error || 'Failed to update payment')
     }
   }
 
@@ -197,6 +285,7 @@ export default function Inventory() {
             <option value="all">All Bikes</option>
             <option value="available">Available</option>
             <option value="sold">Sold</option>
+            <option value="pending-payment">Pending Payment</option>
           </select>
         </div>
       </div>
@@ -319,6 +408,11 @@ export default function Inventory() {
                               <span className={`inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full ${bike.isSold ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                                 {bike.isSold ? 'Sold' : 'Available'}
                               </span>
+                                {hasPendingPayment(bike) && (
+                                  <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">
+                                    Pending ₹{getPendingAmount(bike).toLocaleString()}
+                                  </span>
+                                )}
                               {!bike.isSold && (
                                 <span className={`inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full ${aging.color}`}>
                                   {aging.status === 'critical' ? '60+ days' : aging.status === 'warning' ? '30+ days' : 'Fresh'}
@@ -336,6 +430,11 @@ export default function Inventory() {
                                 <div className="flex items-center text-green-600">
                                   <IndianRupee className="h-4 w-4 text-green-400 mr-1" />
                                   <span>Sold: ₹{bike.soldPrice.toLocaleString()}</span>
+                                </div>
+                              )}
+                              {bike.isSold && (
+                                <div className={`text-xs ${hasPendingPayment(bike) ? 'text-red-600' : 'text-green-600'}`}>
+                                  Payment: {getPaymentStatus(bike)} | Paid ₹{(bike.paidAmount || 0).toLocaleString()}
                                 </div>
                               )}
                             </div>
@@ -358,6 +457,11 @@ export default function Inventory() {
                               {!bike.isSold && (
                                 <button onClick={() => setSellingBike(bike)} className="text-green-600 hover:text-green-900 px-3 py-1 rounded bg-green-100 hover:bg-green-200 transition-colors">
                                   Mark as Sold
+                                </button>
+                              )}
+                              {hasPendingPayment(bike) && (
+                                <button onClick={() => setUpdatingPaymentBike(bike)} className="text-amber-700 hover:text-amber-900 px-3 py-1 rounded bg-amber-100 hover:bg-amber-200 transition-colors">
+                                  Update Payment
                                 </button>
                               )}
                               <button onClick={() => setEditingBike(bike)} className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-100 transition-colors">
@@ -393,6 +497,11 @@ export default function Inventory() {
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${bike.isSold ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                               {bike.isSold ? 'Sold' : 'Available'}
                             </span>
+                            {hasPendingPayment(bike) && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">
+                                Pending ₹{getPendingAmount(bike).toLocaleString()}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -431,6 +540,15 @@ export default function Inventory() {
                             </div>
                           )}
 
+                          {bike.isSold && (
+                            <div className="col-span-1">
+                              <span className="text-gray-500 block text-xs uppercase tracking-wide">Pending</span>
+                              <div className={`font-semibold ${hasPendingPayment(bike) ? 'text-red-600' : 'text-green-600'}`}>
+                                ₹{getPendingAmount(bike).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
+
                           <div className="col-span-2 pt-2 border-t border-gray-100 mt-2 flex justify-between items-center">
                             <div className="flex items-center text-xs text-gray-500">
                                <User className="h-3 w-3 mr-1" />
@@ -452,6 +570,14 @@ export default function Inventory() {
                               className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors shadow-sm active:bg-green-800"
                             >
                               Mark Sold
+                            </button>
+                          )}
+                          {hasPendingPayment(bike) && (
+                            <button
+                              onClick={() => setUpdatingPaymentBike(bike)}
+                              className="flex-1 bg-amber-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-amber-700 transition-colors shadow-sm active:bg-amber-800"
+                            >
+                              Update Payment
                             </button>
                           )}
                           <button
@@ -483,6 +609,13 @@ export default function Inventory() {
       {showAddModal && <AddBikeModal onClose={() => setShowAddModal(false)} onSubmit={handleAddBike} />}
       {editingBike && <EditBikeModal bike={editingBike} onClose={() => setEditingBike(null)} onSubmit={handleEditBike} />}
       {sellingBike && <MarkAsSoldModal bike={sellingBike} onClose={() => setSellingBike(null)} onSubmit={handleMarkAsSold} />}
+      {updatingPaymentBike && (
+        <UpdatePaymentModal
+          bike={updatingPaymentBike}
+          onClose={() => setUpdatingPaymentBike(null)}
+          onSubmit={handleUpdatePayment}
+        />
+      )}
       {selectedBikeForDetails && (
         <BikeDetailsModal 
           bikeId={selectedBikeForDetails.id} 

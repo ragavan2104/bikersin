@@ -6,8 +6,14 @@ import { AuthRequest } from '../middleware/auth';
 import { getSystemStats, validateCompanyData, validateUserData, logAdminAction } from '../utils/adminHelpers';
 import { suspendExpiredCompanies, getCompaniesExpiringSoon } from '../middleware/companyValidity';
 import { Bike } from '../types/models';
+import { config } from '../config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
+const JWT_SECRET = config.JWT_SECRET;
+
+const sanitizeUser = (user: any) => {
+    const { passwordHash, ...safeUser } = user;
+    return safeUser;
+};
 
 export const createCompany = async (req: AuthRequest, res: Response) => {
     try {
@@ -138,7 +144,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
             companyId 
         });
         
-        res.json(user);
+        res.json(sanitizeUser(user));
     } catch (error) {
         if (error instanceof Error && error.message.includes('Unique constraint')) {
             res.status(400).json({ error: 'Email already exists' });
@@ -259,7 +265,7 @@ export const getAllCompanies = async (req: AuthRequest, res: Response) => {
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
     try {
         const users = await db.findAllUsers();
-        res.json(users);
+        res.json(users.map((user: any) => sanitizeUser(user)));
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch users' });
     }
